@@ -1,0 +1,1 @@
+# osu-scrobbler-2026
