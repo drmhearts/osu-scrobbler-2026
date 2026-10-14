@@ -1,6 +1,6 @@
 # osu! life hacks
 
-Listen in osu!, identify songs with MusicBrainz, and scrobble to Last.fm.
+Title. Also a metadata extractor!
 
 1. Extract the Windows package and double-click **START.cmd**.
 2. Connect Last.fm once and choose whether to start with Windows.
