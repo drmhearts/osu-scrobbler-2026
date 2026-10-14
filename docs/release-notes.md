@@ -1,4 +1,15 @@
-## Try osu! scrobbler 0.2.3
+## Try osu! scrobbler 0.2.4
+
+Fixes songs being skipped when MusicBrainz is unavailable or cannot identify a
+confident match. Automatic scrobbling now uses beatmap title and artist after
+**29 seconds of active listening**, even while a lookup is pending. Missing album
+uses the track title (single fallback); album artist defaults to artist.
+Confident matches and saved corrections still improve metadata. Late results
+never submit the same play twice.
+
+Main-menu and song-selection music now scrobble too, on stable and lazer.
+An advancing audio clock proves listening; pauses, seeks, silent selections and
+disconnect gaps earn no time. Each loop is a new listen with duplicate protection.
 
 Download **osu-scrobbler-windows-source.zip** below and extract it into a permanent folder.
 
@@ -12,7 +23,7 @@ are remembered in Windows Credential Manager. Click the pink tray icon to reopen
 the terminal; closing the view keeps background scrobbling running. Use the icon's
 **Exit** menu to stop it.
 
-The default threshold is 29 seconds of active gameplay (custom Last.fm behavior).
+The default threshold is 29 seconds of active listening (custom Last.fm behavior).
 Automatic updates use verified published releases and preserve settings/history.
 No analytics, tracking IDs or gameplay uploads are included. Source is MIT licensed.
 

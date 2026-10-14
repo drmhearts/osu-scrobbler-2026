@@ -17,6 +17,7 @@ from .models import Beatmap, Phase, Submission, Telemetry, Track
 DUPLICATE_MESSAGE = (
     "Already scrobbled. Retry the map and play at least 29 seconds to scrobble again."
 )
+ACTIVE_PHASES = {Phase.PLAYING, Phase.LISTENING}
 
 
 class DuplicateSuppressed(ValueError):
@@ -215,7 +216,7 @@ class PlaybackEngine:
     def _advance(self, monotonic: float) -> None:
         if (
             self._last_monotonic is not None
-            and self.phase == Phase.PLAYING
+            and self.phase in ACTIVE_PHASES
             and self._attempt is not None
         ):
             self._attempt.active_seconds += max(0.0, monotonic - self._last_monotonic)
@@ -240,7 +241,7 @@ class PlaybackEngine:
                 self._position = None
                 self._selection_claim = None
 
-        fresh = connected and incoming_phase == Phase.PLAYING and self.beatmap is not None
+        fresh = connected and incoming_phase in ACTIVE_PHASES and self.beatmap is not None
         if fresh:
             token_changed = bool(
                 self._attempt
@@ -249,7 +250,7 @@ class PlaybackEngine:
                 and telemetry.attempt_token != self._attempt.token
             )
             rewound = bool(
-                previous_phase == Phase.PLAYING
+                previous_phase in ACTIVE_PHASES
                 and self._position is not None
                 and telemetry.position is not None
                 and telemetry.position < self._position - 1.0
@@ -278,7 +279,7 @@ class PlaybackEngine:
         elif self._attempt and telemetry.attempt_token is not None and connected:
             self._attempt.token = telemetry.attempt_token
         self.phase = incoming_phase
-        if connected and incoming_phase == Phase.PLAYING:
+        if connected and incoming_phase in ACTIVE_PHASES:
             self._position = telemetry.position
         self._last_wall_time = wall_time
 
@@ -355,7 +356,7 @@ class PlaybackEngine:
         elif not attempt and self._selection_claim:
             return None
 
-        current_gameplay = attempt is not None and self.phase in {Phase.PLAYING, Phase.PAUSED}
+        current_gameplay = attempt is not None and self.phase in ACTIVE_PHASES | {Phase.PAUSED}
         submission = Submission(
             id=uuid.uuid4().hex,
             attempt_id=(

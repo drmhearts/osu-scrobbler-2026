@@ -18,15 +18,15 @@ def test_default_identification_keeps_track_album_and_hides_internal_metadata():
     assert len(output.splitlines()) == 2
 
 
-def test_candidate_list_is_numbered_and_capped_while_status_keeps_all_choices():
+def test_fallback_message_is_brief_and_status_keeps_optional_choices():
     tracks = [Track(f"Song {index}", "Artist", f"Album {index}", "Artist").to_dict() for index in range(1, 6)]
-    output = render({"identification": "Ambiguous", "track": None, "candidates": tracks})
-    assert "automatic scrobbling is waiting" in output
-    assert "1. Artist — Song 1" in output
-    assert "3. Artist — Song 3" in output
+    fallback = Track("Selected song", "Artist", "Selected song", "Artist", album_fallback=True).to_dict()
+    output = render({"identification": "Ambiguous", "track": fallback, "beatmap_fallback": True, "candidates": tracks})
+    assert "Using beatmap metadata: Artist — Selected song" in output
+    assert "Album: Selected song (title fallback)" in output
+    assert "waiting" not in output
     assert "Song 4" not in output
-    assert "status shows all" in output
-    status = render({"active_seconds": 0, "phase": "menu", "candidates": tracks, "track": None})
+    status = render({"active_seconds": 0, "phase": "menu", "candidates": tracks, "track": fallback})
     assert "5. Artist — Song 5" in status
 
 

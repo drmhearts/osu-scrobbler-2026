@@ -95,13 +95,16 @@ default: `%LOCALAPPDATA%\osu-scrobbler`. Exports are UTF-8, tab-separated text.
 
 ## Behavior
 
-- Default: scrobble after **29 seconds of active gameplay**. Pauses, previews,
-  menus, and disconnects do not count. Every retry has its own timer.
+- Default: scrobble after **29 seconds of active listening**, in gameplay, the
+  main menu or song selection. Menu audio must have an advancing playback clock;
+  paused audio, seeks and disconnects do not count. Every retry/loop has its own timer.
 - The default and unplayed force are **custom behavior**. Standard mode requires
   duration over 30 seconds and half the track or 4 minutes, plus a 29-second minimum.
 - Successful force suppresses the next attempt of that track. A later attempt
   needs 29 seconds of fresh play **and** 29 seconds since the previous success.
-- Ambiguous matches wait for a choice. Unknown albums use **title fallback**.
+- Lookup never blocks scrobbling: missing, ambiguous, slow or unavailable matches
+  use the beatmap title/artist. Unknown albums use **track title**; album artist
+  defaults to artist. Candidates and saved corrections remain optional.
 - Offline submissions stay queued. Uncertain outcomes require explicit retry;
   Last.fm cannot guarantee exactly-once delivery. Export failures never resubmit.
 - Lazer requires matching local/player names, compared only in memory. Replays and

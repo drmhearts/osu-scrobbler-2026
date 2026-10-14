@@ -84,8 +84,9 @@ def render(value, *, full=False, json_output=False):
     if "identification" in value:
         if value.get("track"):
             track = value["track"]
-            return f"Identified: {song(track)}\n{album(track)}"
-        return "Needs a match; automatic scrobbling is waiting.\n" + "\n".join(candidates(value.get("candidates", []), 3))
+            label = "Using beatmap metadata" if value.get("beatmap_fallback") else "Identified"
+            return f"{label}: {song(track)}\n{album(track)}"
+        return "Title and artist needed; automatic scrobbling is waiting."
     if "phase" in value and "active_seconds" not in value:
         return "Disconnected; waiting for osu! / tosu." if value["phase"] == "disconnected" else ""
     if "connected" in value:
@@ -121,7 +122,7 @@ def render(value, *, full=False, json_output=False):
             lines.append("Dry run: no Last.fm writes.")
         if value.get("suppressed"):
             lines.append("Already scrobbled. Retry the map and play at least 29 seconds to scrobble again.")
-        if value.get("candidates") and not value.get("track"):
+        if value.get("candidates"):
             lines.extend(candidates(value["candidates"]))
         elif not value.get("track"):
             lines.append(text(value.get("lookup")))

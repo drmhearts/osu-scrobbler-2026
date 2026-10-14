@@ -6,7 +6,7 @@ import math
 import os
 import sys
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from .config import Config, WatchLock
@@ -101,6 +101,13 @@ class Watcher:
             self.saved_force_credits = credits
 
     def _bind(self, track: Track | None):
+        if track:
+            if not track.title.strip() or not track.artist.strip():
+                track = None
+            else:
+                track = replace(track, album=track.album or track.title,
+                                album_artist=track.album_artist or track.artist,
+                                album_fallback=track.album_fallback or not bool(track.album))
         self.engine.bind_track(track)
         if track:
             last = self.storage.last_success(track.identity)
@@ -128,6 +135,8 @@ class Watcher:
                     self._bind(fixture_track or Track.fallback(self.engine.beatmap))
                     self.lookup_status = "Fixture metadata (no live MusicBrainz request)"
                 else:
+                    # Metadata enrichment must never hold up an eligible play.
+                    self._bind(Track.fallback(self.engine.beatmap))
                     self._task(self._lookup(self.engine.beatmap, self.lookup_generation))
         if previous_phase != self.engine.phase:
             if previous_phase == Phase.DISCONNECTED and self.engine.phase != Phase.DISCONNECTED:
@@ -140,15 +149,16 @@ class Watcher:
             result = await self.musicbrainz.lookup(beatmap)
         except Exception:
             if generation == self.lookup_generation:
-                self.lookup_status = "MusicBrainz unavailable; automatic submission waits for identification or a correction"
+                self.lookup_status = "MusicBrainz unavailable; using beatmap metadata for scrobbling"
                 self.say(self.lookup_status)
             return
         if generation != self.lookup_generation:
             return
         self.candidates = result.candidates
-        self.lookup_status = result.reason or ("Identified" if result.track else "Choose a candidate or correct metadata")
-        self._bind(result.track)
-        self.say({"identification": self.lookup_status, "track": result.track.to_dict() if result.track else None,
+        self.lookup_status = (result.reason or "Identified") if result.track else "Using beatmap metadata; optional corrections are available"
+        self._bind(result.track or Track.fallback(beatmap))
+        self.say({"identification": self.lookup_status, "track": self.engine.track.to_dict() if self.engine.track else None,
+                  "beatmap_fallback": result.track is None,
                   "candidates": [candidate.to_dict() for candidate in self.candidates]})
         # A late answer may still qualify the same ongoing attempt.
         # Metadata callbacks are not proof that gameplay continued after the
@@ -360,7 +370,7 @@ class Watcher:
         elif action == "clear-correction":
             self.musicbrainz.clear_correction(self.engine.beatmap)
             self.lookup_generation += 1
-            self._bind(None)
+            self._bind(Track.fallback(self.engine.beatmap))
             self._task(self._lookup(self.engine.beatmap, self.lookup_generation))
             return {"cleared": True}
         else:

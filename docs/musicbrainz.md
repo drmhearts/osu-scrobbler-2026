@@ -1,9 +1,15 @@
 # Matching
 
 MusicBrainz searches use title/artist (including Unicode), romanization, featured
-credits, version labels, and duration. Different remixes and close matches need
-manual selection; transliteration alone does not prove identity. Short game cuts
+credits, version labels, and duration. Different remixes and close matches offer
+optional manual selection; transliteration alone does not prove identity. Short game cuts
 may match full recordings, with the difference retained in detailed metadata.
+
+Scrobbling never waits for a lookup. Until a confident match or saved correction
+is available, beatmap title/artist are used, album is the track title, and album
+artist is the artist. Missing, ambiguous, unavailable and slow lookups still
+qualify after 29 seconds of active listening in the default mode. A late match
+does not resubmit an already queued or accepted play.
 
 `status` lists candidates; `config choose N` or `config correct` saves a correction
 across restarts/difficulty changes. Delayed responses cannot replace a newer map

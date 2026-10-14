@@ -4,6 +4,7 @@ from types import SimpleNamespace
 import pytest
 
 from osu_scrobbler.config import Config
+from osu_scrobbler.lastfm import DeliveryResult
 from osu_scrobbler.models import Beatmap, LookupResult, Phase, Telemetry, Track
 from osu_scrobbler.watcher import Watcher, display_info
 
@@ -99,6 +100,65 @@ async def test_manual_choice_wins_over_delayed_lookup_and_persists(tmp_path, mon
         await asyncio.sleep(0)
         assert watcher.engine.track.title == "防人想歌"
         assert mb.corrections[0][0].selection_key == "A"
+    finally:
+        await cleanup(watcher)
+
+
+@pytest.mark.parametrize("lookup", ["unavailable", "missing", "ambiguous", "pending"])
+async def test_lookup_never_blocks_29_second_scrobble(tmp_path, lookup):
+    mb = DeferredMusicBrainz()
+    delivered = []
+
+    class LastFm:
+        async def submit(self, submission):
+            delivered.append(submission)
+            return DeliveryResult("accepted", accepted=1)
+
+    watcher = Watcher(tmp_path, Config(), musicbrainz=mb, lastfm=LastFm(), output=lambda _: None)
+    selected = Beatmap("map", "Roman title", "Roman artist", title_unicode="曲", artist_unicode="歌手")
+    try:
+        await watcher.ingest(Telemetry(selected, Phase.PLAYING, 0), 0, 1700000000)
+        await asyncio.sleep(0)
+        future = mb.futures["map"]
+        if lookup == "unavailable":
+            future.set_exception(OSError("MusicBrainz offline"))
+        elif lookup != "pending":
+            future.set_result(LookupResult(None, [track()] if lookup == "ambiguous" else []))
+        await asyncio.sleep(0)
+        await watcher.ingest(Telemetry(selected, Phase.PLAYING, 28.9), 28.9, 1700000028.9)
+        assert not watcher.storage.history()
+        await watcher.ingest(Telemetry(selected, Phase.PLAYING, 29), 29, 1700000029)
+        await watcher.deliver_once()
+        assert len(delivered) == 1
+        submission = delivered[0]
+        assert (submission.track.title, submission.track.artist, submission.track.album,
+                submission.track.album_artist) == ("曲", "歌手", "曲", "歌手")
+        assert submission.track.album_fallback and not submission.track.verified
+        assert submission.playback_start == 1700000000
+        if lookup == "pending":
+            future.set_result(LookupResult(track()))
+            await asyncio.sleep(0)
+        await watcher.ingest(Telemetry(selected, Phase.PLAYING, 40), 40, 1700000040)
+        await watcher.deliver_once()
+        assert len(delivered) == len(watcher.storage.history()) == 1
+    finally:
+        await cleanup(watcher)
+
+
+async def test_confident_match_enriches_metadata_before_threshold(tmp_path):
+    mb = DeferredMusicBrainz()
+    watcher = Watcher(tmp_path, Config(), musicbrainz=mb, output=lambda _: None)
+    try:
+        await watcher.ingest(Telemetry(beatmap(), Phase.PLAYING, 0), 0, 1700000000)
+        await asyncio.sleep(0)
+        matched = Track("Correct title", "Correct artist", "", "", recording_id="recording")
+        mb.futures["A"].set_result(LookupResult(matched))
+        await asyncio.sleep(0)
+        await watcher.ingest(Telemetry(beatmap(), Phase.PLAYING, 29), 29, 1700000029)
+        submission, = watcher.storage.pending()
+        assert submission.track.title == submission.track.album == "Correct title"
+        assert submission.track.artist == submission.track.album_artist == "Correct artist"
+        assert submission.track.recording_id == "recording"
     finally:
         await cleanup(watcher)
 

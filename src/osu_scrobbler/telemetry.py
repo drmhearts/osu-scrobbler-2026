@@ -93,7 +93,7 @@ class TosuAdapter:
     """
 
     compatibility_notice = (
-        "Gameplay counting requires current tosu v2 plus fresh /tokens evidence. "
+        "Gameplay and menu listening use current tosu v2 plus fresh /tokens evidence. "
         "Stable and lazer are supported; replay, spectator and unknown pause/status "
         "evidence are excluded. Lazer requires matching local/gameplay player names."
     )
@@ -138,6 +138,8 @@ class TosuAdapter:
         self._attempt_counter = 0
         self._companion: dict | None = None
         self._companion_received = -math.inf
+        self._menu_context = False
+        self._sample_monotonic: float | None = None
 
     def disconnected(self) -> Telemetry:
         self._phase = Phase.DISCONNECTED
@@ -206,11 +208,11 @@ class TosuAdapter:
             return False
         return True
 
-    def parse(self, payload: dict, *, companion: dict | None = None) -> Telemetry:
+    def parse(self, payload: dict, *, companion: dict | None = None, monotonic: float | None = None) -> Telemetry:
         """Translate a v2 snapshot, retaining selection independently of gameplay.
 
-        Duration is audio length, never last hit-object time. Position is only
-        used for detecting a fresh retry; elapsed listening is measured elsewhere
+        Duration is audio length, never last hit-object time. Position detects
+        fresh retries and confirms menu audio; elapsed listening is measured elsewhere
         with a monotonic clock. Without explicit safety evidence play is paused.
         """
         if not isinstance(payload, dict) or payload.get("error"):
@@ -225,6 +227,10 @@ class TosuAdapter:
         position = live / 1000 if live is not None else None
         phase = Phase.MENU
         interval_reliable = True
+        now = time.monotonic() if monotonic is None else monotonic
+        elapsed = max(0.0, now - self._sample_monotonic) if self._sample_monotonic is not None else 0.0
+        menu_context = number in {0, 5, 11, 12, 13}
+        context_changed = menu_context != self._menu_context
         supported_client = _text(payload.get("client")).casefold() in {"stable", "lazer"}
         if number in {7, 14, 17, 18}:
             phase = Phase.RESULTS
@@ -260,23 +266,39 @@ class TosuAdapter:
             else:
                 phase = Phase.PAUSED if game["paused"] else Phase.PLAYING
 
+        elif menu_context:
+            # Menu selection alone proves no listening. Require the same song's
+            # audio clock to advance normally; seeking and frozen clocks earn no time.
+            companion_position = _number(companion.get("time")) if companion else None
+            evidence = bool(
+                supported_client and beatmap and position is not None and position >= 0
+                and companion and companion.get("status") == 1 and companion.get("rawStatus") == number
+                and companion.get("md5") == _text(_object(payload.get("beatmap")).get("checksum"))
+                and companion_position is not None and abs(position - companion_position) <= 1.0
+            )
+            delta = position - self._position if position is not None and self._position is not None else 0.0
+            advancing = bool(evidence and selection == self._selection and not context_changed
+                             and 0 < delta <= max(1.0, elapsed * 2 + 0.25))
+            phase = Phase.LISTENING if advancing else Phase.PAUSED if self._attempt and not context_changed else Phase.MENU
+            interval_reliable = advancing
+
         selection_changed = selection != self._selection
         retry = (
             self._attempt is not None
             and not selection_changed
-            and phase in {Phase.PLAYING, Phase.PAUSED}
+            and phase in {Phase.PLAYING, Phase.LISTENING, Phase.PAUSED}
             and position is not None
             and self._position is not None
             and position < self._position - 0.25
         )
-        if selection_changed or phase not in {Phase.PLAYING, Phase.PAUSED}:
+        if selection_changed or context_changed or phase not in {Phase.PLAYING, Phase.LISTENING, Phase.PAUSED}:
             self._attempt = None
         if phase == Phase.PLAYING and self._attempt is None and not retry and position > 1.0:
             # Attaching midway cannot establish the actual playback-start time.
             # Wait for an observed beginning/retry instead of inventing one.
             phase = Phase.PAUSED
             interval_reliable = False
-        if phase == Phase.PLAYING and (self._attempt is None or retry):
+        if phase in {Phase.PLAYING, Phase.LISTENING} and (self._attempt is None or retry):
             self._attempt_counter += 1
             self._attempt = f"tosu:{self._attempt_counter}"
         elif retry:
@@ -285,6 +307,8 @@ class TosuAdapter:
         self._selection = selection
         self._position = position
         self._phase = phase
+        self._menu_context = menu_context
+        self._sample_monotonic = now
         return Telemetry(beatmap, phase, position, self._attempt, interval_reliable=interval_reliable)
 
     async def _watch_tokens(self) -> None:

@@ -7,7 +7,8 @@ map metadata and `/tokens` for personal-play evidence. Default host:
 V2 supplies ordinary/Unicode title and artist, checksum/map/set IDs, difficulty,
 and `beatmap.time.mp3Length` (audio milliseconds, not hit-object
 length). `game.paused`, `play.failed`, and state distinguish gameplay from menus.
-Song position detects rewinds only; monotonic intervals measure real active play.
+Song position detects rewinds and confirms menu audio playback; monotonic
+intervals measure real active listening.
 Connection filters request only the fields used by the adapter, dropping unrelated
 fields from older sources locally. File paths are never requested or retained;
 player names are compared only in memory. [Data use](privacy.md).
@@ -22,7 +23,13 @@ playing. Unknown identity stays paused; no osu! password/API key is requested.
 Feeds are sampled independently, so unusual spectator/client variants still need
 live checks. Client-prefixed selection keys prevent stable/lazer timers mixing.
 
-Initial mid-song attachment waits for an observed beginning (position <=1s).
+Main-menu/song-selection audio also counts on stable and lazer. Matching fresh
+companion status 1 and a normally advancing audio position establish listening.
+Frozen clocks and seeks add no time; a rewind starts a fresh loop. Menu listening
+can attach mid-song, counting only newly observed playback, never earlier time.
+No microphone, audio capture, files or new personal fields are needed.
+
+Initial mid-gameplay attachment waits for an observed beginning (position <=1s).
 An existing attempt survives disconnect; a visible rewind/menu/results/failure
 establishes the next one. Start timestamps have telemetry sampling precision.
 Stalls trigger disconnect after two seconds; reconnect backoff is 0.5–10 seconds.

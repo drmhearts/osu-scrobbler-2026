@@ -8,6 +8,7 @@ from typing import Any
 class Phase(str, Enum):
     MENU = "menu"
     PLAYING = "playing"
+    LISTENING = "listening"
     PAUSED = "paused"
     RESULTS = "results"
     FAILED = "failed"
