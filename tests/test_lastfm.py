@@ -177,7 +177,7 @@ async def test_background_launches_reuse_saved_key_secret_and_session_without_pr
             pytest.fail("This startup test must not send any scrobbles")
 
     class IdleAdapter:
-        def __init__(self, url):
+        def __init__(self, **options):
             pass
         async def stream(self):
             yield Telemetry(None, Phase.MENU)
@@ -189,7 +189,7 @@ async def test_background_launches_reuse_saved_key_secret_and_session_without_pr
 
     def output(message):
         messages.append(message)
-        if message == "Waiting for osu! / tosu...":
+        if message == "Waiting for osu!...":
             ready.set()
 
     def factory(directory, config, **options):
@@ -201,13 +201,13 @@ async def test_background_launches_reuse_saved_key_secret_and_session_without_pr
         return False
 
     monkeypatch.setattr(watcher_module, "LastFmClient", SavedClient)
-    monkeypatch.setattr(watcher_module, "TosuAdapter", IdleAdapter)
+    monkeypatch.setattr(watcher_module, "InternalAdapter", IdleAdapter)
     Config(ipc_port=unused_tcp_port).save(tmp_path)
     monitor = Supervisor(tmp_path, watcher_factory=factory, probe=absent, output=output)
     try:
         for number in range(2):
             ready.clear()
-            await monitor.tick({"osu!.exe", "tosu.exe"}, number * 10)
+            await monitor.tick({"osu!.exe"}, number * 10)
             await asyncio.wait_for(ready.wait(), 2)
             assert watchers[-1].delivery_status == "Authorized"
             assert clients[-1].credentials == expected

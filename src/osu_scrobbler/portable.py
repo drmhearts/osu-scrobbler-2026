@@ -10,7 +10,7 @@ from zipfile import ZipFile, BadZipFile
 
 MAX_BUNDLE = 160 * 1024 * 1024
 MAX_EXPANDED = 450 * 1024 * 1024
-PREFIX = "osu-scrobbler-2026/app/runtime/"
+PREFIX = "osu-life-hacks/app/runtime/"
 
 
 def safe_path(name):
@@ -28,7 +28,7 @@ def manifest(content, number=None):
         data = json.loads(content)
         version(data["version"])
         paths = data["files"]
-        if (data.get("name") != "osu-scrobbler" or data.get("schema") != 1
+        if (data.get("name") not in {"osu-life-hacks", "osu-scrobbler"} or data.get("schema") != 1
                 or (number is not None and data["version"] != number)
                 or not isinstance(paths, dict) or not 4 <= len(paths) <= 15000
                 or not {"python.exe", "pythonw.exe", "Lib/site-packages/osu_scrobbler/__init__.py"} <= paths.keys()

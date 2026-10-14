@@ -4,7 +4,7 @@ set "SCROBBLER_DIR=%~dp0"
 if exist "%~dp0app\pyproject.toml" set "SCROBBLER_DIR=%~dp0app\"
 if exist "%~dp0app\runtime\pythonw.exe" set "SCROBBLER_DIR=%~dp0app\"
 cd /d "%SCROBBLER_DIR%"
-title osu! scrobbler
+title osu! life hacks
 
 if exist "%SCROBBLER_DIR%runtime\pythonw.exe" (
   start "" /b "%SCROBBLER_DIR%runtime\pythonw.exe" "%SCROBBLER_DIR%tools\start_windows.py" %*

@@ -19,12 +19,14 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Select tagged release source
+      - name: Select release version
         run: |
           release_tag="${GITHUB_REF_NAME#release/}"
-          git fetch --force --depth=1 origin "refs/tags/$release_tag:refs/tags/$release_tag"
-          git checkout --detach "$release_tag"
           echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
+          if git ls-remote --exit-code --tags origin "refs/tags/$release_tag"; then
+            git fetch --depth=1 origin "refs/tags/$release_tag:refs/tags/$release_tag"
+            test "$(git rev-parse "$release_tag^{commit}")" = "$(git rev-parse HEAD)"
+          fi
       - uses: actions/download-artifact@v4
         with:
           name: windows-release
@@ -32,11 +34,17 @@ jobs:
       - name: Verify packaged release
         run: |
           python tools/verify_release.py --tag "$RELEASE_TAG"
+      - name: Tag the tested commit
+        run: |
+          if ! git rev-parse --verify "refs/tags/$RELEASE_TAG"; then
+            git tag "$RELEASE_TAG" HEAD
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
       - name: Publish stable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$RELEASE_TAG"
-          dist/*.whl dist/osu-scrobbler-windows.zip dist/osu-scrobbler-windows-source.zip dist/SHA256SUMS.txt
-          --verify-tag --title "osu! scrobbler $RELEASE_TAG"
+          dist/*.whl dist/*.zip dist/SHA256SUMS.txt
+          --verify-tag --title "osu! life hacks $RELEASE_TAG"
           --notes-file docs/release-notes.md --generate-notes

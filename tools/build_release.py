@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tomllib
 from zipfile import ZipFile, ZIP_DEFLATED, ZipInfo
+from compat_release import legacy_wheel
 
 
 def main():
@@ -27,26 +28,28 @@ def main():
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     subprocess.run([sys.executable, "-m", "pip", "wheel", "--no-deps", "--wheel-dir", str(output), str(root)], check=True)
-    package = output / f"osu_scrobbler-{version}-py3-none-any.whl"
+    package = output / f"osu_life_hacks-{version}-py3-none-any.whl"
     if not package.is_file():
         raise RuntimeError("Expected universal release wheel was not built")
     files = [root / name for name in ("README.md", "LICENSE", "pyproject.toml", "START.cmd")]
     files.append(root / "tools/start_windows.py")
-    for directory in ("src/osu_scrobbler",):
+    for directory in ("src/osu_scrobbler", "docs"):
         files.extend(path for path in (root / directory).rglob("*")
                      if path.is_file() and not path.is_symlink() and "__pycache__" not in path.parts
                      and (path.suffix in {".py", ".json", ".cmd", ".md", ".ps1"} or path.name.endswith("LICENSE")))
-    source = output / "osu-scrobbler-windows-source.zip"
+    source = output / "osu-life-hacks-windows-source.zip"
     with ZipFile(source, "w", ZIP_DEFLATED) as archive:
         for path in sorted(files):
             relative = path.relative_to(root).as_posix()
-            if relative not in {"START.cmd", "README.md", "LICENSE"}:
+            if relative not in {"START.cmd", "README.md", "LICENSE"} and not relative.startswith("docs/"):
                 relative = "app/" + relative
-            info = ZipInfo("osu-scrobbler-2026/" + relative)
+            info = ZipInfo("osu-life-hacks/" + relative)
             info.compress_type = ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, path.read_bytes())
-    checksums = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}" for path in (package, source)]
+    legacy = output / f"osu_scrobbler-{version}-py3-none-any.whl"
+    legacy_wheel(package, legacy, version)
+    checksums = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}" for path in (package, legacy, source)]
     (output / "SHA256SUMS.txt").write_text("\n".join(checksums) + "\n", "utf-8")
     print(f"Built release {version}: wheel, Windows source ZIP, and SHA256SUMS.txt")
 

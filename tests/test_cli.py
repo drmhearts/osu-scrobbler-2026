@@ -68,7 +68,7 @@ async def test_offline_export_uses_history_and_recovers_stale_control_file(tmp_p
 
 @pytest.mark.parametrize("key,value", [("ipc_port", "abc"), ("ipc_port", True), ("threshold_mode", []),
                                       ("export_path", 123), ("musicbrainz_user_agent", None),
-                                      ("tosu_url", "ws://example.com/websocket/v2"), ("auto_export", "false")])
+                                      ("auto_export", "false")])
 def test_invalid_config_is_rejected_before_save(tmp_path, key, value):
     config = Config(**{key: value})
     with pytest.raises(ValueError):

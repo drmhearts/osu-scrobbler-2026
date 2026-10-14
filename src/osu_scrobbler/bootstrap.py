@@ -42,7 +42,7 @@ def repair_launcher(directory, *, root=None, parent_executable=None, assets=None
                     return False
                 root = parent.parents[2]
         root = Path(root).absolute()
-        if root.resolve() != root or tomllib.loads((root / "pyproject.toml").read_text("utf-8"))["project"]["name"] != "osu-scrobbler":
+        if root.resolve() != root or tomllib.loads((root / "pyproject.toml").read_text("utf-8"))["project"]["name"] not in {"osu-life-hacks", "osu-scrobbler"}:
             return False
         (directory / "install-root.json").write_text(json.dumps({"root": str(root)}) + "\n", "utf-8")
         try:

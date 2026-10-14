@@ -6,7 +6,6 @@ import sys
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from urllib.parse import urlparse
 from . import __version__
 
 
@@ -31,25 +30,14 @@ def default_data_dir() -> Path:
 
 @dataclass
 class Config:
-    tosu_url: str = "ws://127.0.0.1:24050/websocket/v2"
-    tosu_path: str = ""
     ipc_port: int = 42381
     threshold_mode: str = "half"
     auto_export: bool = False
     auto_update: bool = True
     export_path: str = ""
-    musicbrainz_user_agent: str = f"osu-scrobbler/{__version__} (https://github.com/drmhearts/osu-scrobbler-2026)"
+    musicbrainz_user_agent: str = f"osu-life-hacks/{__version__} (Hky Sigh)"
 
     def validate(self) -> None:
-        if not isinstance(self.tosu_path, str) or any(char in self.tosu_path for char in "\r\n\x00"):
-            raise ValueError("tosu_path must be an executable path")
-        if not isinstance(self.tosu_url, str):
-            raise ValueError("tosu_url must be a string")
-        parsed = urlparse(self.tosu_url)
-        if (parsed.scheme not in {"ws", "wss"} or parsed.hostname not in {"localhost", "127.0.0.1", "::1"}
-                or parsed.path != "/websocket/v2" or parsed.username or parsed.password or parsed.query or parsed.fragment):
-            raise ValueError("tosu_url must use a loopback ws(s)://host:port/websocket/v2 endpoint")
-        _ = parsed.port
         if type(self.ipc_port) is not int or not 1024 <= self.ipc_port <= 65535:
             raise ValueError("ipc_port must be between 1024 and 65535")
         if not isinstance(self.threshold_mode, str) or self.threshold_mode not in {"half", "custom", "standard"}:
@@ -70,7 +58,15 @@ class Config:
     @classmethod
     def load(cls, directory: Path) -> "Config":
         path = directory / "config.json"
-        config = cls(**json.loads(path.read_text("utf-8"))) if path.exists() else cls()
+        values = json.loads(path.read_text("utf-8")) if path.exists() else {}
+        # Retire legacy transport settings without discarding any user settings.
+        values.pop("tosu_url", None)
+        values.pop("tosu_path", None)
+        old_agent = values.get("musicbrainz_user_agent", "")
+        if isinstance(old_agent, str) and re.fullmatch(
+                r"osu-scrobbler/[\d.]+ \(https://github\.com/drmhearts/osu-scrobbler-2026\)", old_agent):
+            values.pop("musicbrainz_user_agent")
+        config = cls(**values)
         config.validate()
         return config
 

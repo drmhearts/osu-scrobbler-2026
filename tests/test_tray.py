@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from osu_scrobbler.config import Config
-from osu_scrobbler.tray import Supervisor, find_tosu, install_startup, remove_startup, startup_name, tray_command
+from osu_scrobbler.tray import Supervisor, install_startup, remove_startup, startup_name, tray_command
 
 
 class FakeRegistry:
@@ -72,18 +72,6 @@ def test_overlong_startup_command_does_not_write_registry(tmp_path):
     assert registry.values == {"Other app": "keep"}
 
 
-def test_tosu_locator_prefers_configured_path_and_finds_documented_desktop_location(tmp_path):
-    default = tmp_path / "Desktop/tosu/tosu.exe"
-    default.parent.mkdir(parents=True)
-    default.write_bytes(b"fixture")
-    configured = tmp_path / "custom/tosu.exe"
-    configured.parent.mkdir()
-    configured.write_bytes(b"fixture")
-    assert find_tosu(Config(), home=tmp_path) == default
-    assert find_tosu(Config(tosu_path=str(configured)), home=tmp_path) == configured
-    assert find_tosu(Config(tosu_path=str(tmp_path / "missing.exe")), home=tmp_path) is None
-
-
 class FakeWatcher:
     def __init__(self, directory, config, **options):
         self.stop = asyncio.Event()
@@ -111,64 +99,31 @@ async def test_game_launch_starts_one_watcher_and_close_stops_it(tmp_path, game)
     supervisor = Supervisor(tmp_path, dry_run=True, watcher_factory=factory, probe=absent, output=lambda _: None)
     await supervisor.tick(set(), 0)
     assert not watchers
-    await supervisor.tick({game, "tosu.exe"}, 1)
+    await supervisor.tick({game}, 1)
     await asyncio.sleep(0)
-    await supervisor.tick({game, "tosu.exe"}, 2)
+    await supervisor.tick({game}, 2)
     assert len(watchers) == 1 and watchers[0].starts == 1
     assert watchers[0].options["keyboard"] is False
     assert watchers[0].options["dry_run"] is True
-    await supervisor.tick({"tosu.exe"}, 3)
+    await supervisor.tick(set(), 3)
     assert watchers[0].stops == 1
     assert supervisor.task is None and supervisor.status == "Waiting for osu!"
-    await supervisor.tick({game, "tosu.exe"}, 4)
+    await supervisor.tick({game}, 4)
     await asyncio.sleep(0)
     assert len(watchers) == 2
     await supervisor._stop_watcher()
 
 
-async def test_manual_watcher_and_existing_tosu_are_never_stopped_or_duplicated(tmp_path):
+async def test_manual_watcher_is_never_stopped_or_duplicated(tmp_path):
     async def present(directory):
         return True
     def forbidden(*args, **kwargs):
         raise AssertionError("Existing processes must be reused")
-    supervisor = Supervisor(tmp_path, probe=present, watcher_factory=forbidden, tosu_starter=forbidden, output=lambda _: None)
-    await supervisor.tick({"osu!.exe", "tosu.exe"}, 0)
-    assert supervisor.status == "Using running watcher"
-    await supervisor.tick({"tosu.exe"}, 1)
-    assert supervisor.watcher is None and supervisor.tosu is None
-
-
-async def test_owned_tosu_is_started_once_and_only_that_process_is_stopped(tmp_path):
-    child = SimpleNamespace(terminations=0)
-    child.poll = lambda: None
-    child.terminate = lambda: setattr(child, "terminations", child.terminations + 1)
-    launches = []
-    def start(path):
-        launches.append(path)
-        return child
-    supervisor = Supervisor(tmp_path, watcher_factory=FakeWatcher, probe=absent,
-                            tosu_locator=lambda _: Path("tosu.exe"), tosu_starter=start, output=lambda _: None)
-    await supervisor.tick({"osulazer.exe"}, 0)
-    await asyncio.sleep(0)
-    await supervisor.tick({"osulazer.exe"}, 1)
-    assert launches == [Path("tosu.exe")]
-    await supervisor.tick(set(), 2)
-    assert child.terminations == 1
-    await supervisor.tick(set(), 3)
-    assert child.terminations == 1
-
-
-async def test_missing_tosu_notice_is_not_repeated_every_second(tmp_path):
-    messages = []
-    supervisor = Supervisor(tmp_path, watcher_factory=FakeWatcher, probe=absent,
-                            tosu_locator=lambda _: None, output=messages.append)
+    supervisor = Supervisor(tmp_path, probe=present, watcher_factory=forbidden, output=lambda _: None)
     await supervisor.tick({"osu!.exe"}, 0)
-    await asyncio.sleep(0)
-    await supervisor.tick({"osu!.exe"}, 1)
-    await supervisor.tick({"osu!.exe"}, 31)
-    assert len(messages) == 1
-    assert "tosu not found" in messages[0]
-    await supervisor._stop_watcher()
+    assert supervisor.status == "Using running watcher"
+    await supervisor.tick(set(), 1)
+    assert supervisor.watcher is None
 
 
 async def test_supervisor_shutdown_waits_for_watcher_cleanup(tmp_path):
@@ -177,7 +132,7 @@ async def test_supervisor_shutdown_waits_for_watcher_cleanup(tmp_path):
     def ready(status):
         statuses.append(status)
         supervisor.stop.set()
-    await supervisor.run(get_processes=lambda: {"osu!.exe", "tosu.exe"}, on_status=ready)
+    await supervisor.run(get_processes=lambda: {"osu!.exe"}, on_status=ready)
     assert statuses == ["Watching osu!"]
     assert supervisor.task is None and supervisor.watcher is None
 
@@ -196,14 +151,14 @@ async def test_failed_watcher_is_closed_and_restart_is_backed_off(tmp_path):
         watchers.append(watcher)
         return watcher
     supervisor = Supervisor(tmp_path, watcher_factory=factory, probe=absent, output=lambda _: None)
-    await supervisor.tick({"osu!.exe", "tosu.exe"}, 0)
+    await supervisor.tick({"osu!.exe"}, 0)
     await asyncio.sleep(0)
-    await supervisor.tick({"osu!.exe", "tosu.exe"}, 1)
+    await supervisor.tick({"osu!.exe"}, 1)
     assert watchers[0].closes == 1
     assert supervisor.status == "Restarting watcher"
-    await supervisor.tick({"osu!.exe", "tosu.exe"}, 5)
+    await supervisor.tick({"osu!.exe"}, 5)
     assert len(watchers) == 1
-    await supervisor.tick({"osu!.exe", "tosu.exe"}, 11)
+    await supervisor.tick({"osu!.exe"}, 11)
     assert len(watchers) == 2
     await supervisor._stop_watcher()
 
@@ -241,19 +196,10 @@ def test_process_probe_reads_only_names_and_discards_unrelated_applications(monk
     def processes(fields):
         seen.append(fields)
         return [SimpleNamespace(info={"name": name}) for name in
-                ("Browser.exe", "PrivateWork.exe", "OSU!.exe", "osuLazer.exe", "tosu.exe", None)]
+                ("Browser.exe", "PrivateWork.exe", "OSU!.exe", "osuLazer.exe", None)]
     cleared = []
     processes.cache_clear = lambda: cleared.append(True)
     monkeypatch.setitem(sys.modules, "psutil", SimpleNamespace(process_iter=processes, NoSuchProcess=LookupError, AccessDenied=PermissionError))
-    assert tray_module.process_names() == {"osu!.exe", "osulazer.exe", "tosu.exe"}
+    assert tray_module.process_names() == {"osu!.exe", "osulazer.exe"}
     assert seen == [["name"]]
     assert cleared == [True]
-
-
-def test_owned_tosu_launch_disables_automatic_binary_replacement(tmp_path, monkeypatch):
-    import osu_scrobbler.tray as tray_module
-    calls = []
-    monkeypatch.setattr(tray_module.subprocess, "Popen", lambda command, **options: calls.append((command, options)))
-    tray_module.start_tosu(tmp_path / "tosu.exe")
-    assert calls[0][0] == [str((tmp_path / "tosu.exe").resolve()), "--update=false"]
-    assert calls[0][1]["cwd"] == str(tmp_path.resolve())

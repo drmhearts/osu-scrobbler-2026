@@ -1,6 +1,7 @@
 """The single owner of telemetry, selection, attempts, and durable delivery."""
 
 import asyncio
+from contextlib import aclosing
 import json
 import math
 import os
@@ -17,8 +18,8 @@ from .models import Beatmap, Phase, Track
 from .musicbrainz import MusicBrainzClient
 from .playback import DuplicateSuppressed, PlaybackEngine
 from .storage import Storage
-from .telemetry import TosuAdapter
-from .welcome import welcome
+from .telemetry import InternalAdapter, StateDecoder
+from .welcome import welcome, commands
 from .threshold import Threshold
 from .terminal import threshold_prompt, enable_colors, style_message
 
@@ -366,7 +367,7 @@ class Watcher:
                 self.threshold.save(self.directory)
                 self.engine.mode = "half"
             return {"saved": key, "value": getattr(candidate, key),
-                    "restart_required": key in {"tosu_url", "ipc_port", "musicbrainz_user_agent"}}
+                    "restart_required": key in {"ipc_port", "musicbrainz_user_agent"}}
         if not self.engine.beatmap:
             return {"error": "No selected beatmap"}
         if action == "choose":
@@ -432,21 +433,21 @@ class Watcher:
                 enable_colors()
                 self.output(welcome(self.directory))
             mode = "Timer: " + self.threshold.label
-            self.say(f"osu! scrobbler | {'DRY RUN — no writes' if self.dry_run else 'Live'} | {mode}")
+            self.say(f"osu! life hacks | {'DRY RUN — no writes' if self.dry_run else 'Live'} | {mode}")
             if self.enable_keyboard and (self.fixture or self.json_output):
-                self.say("f force | i info | v full info | e export | a auto-export | q quit")
+                self.say(commands())
             if saved_authorization:
                 self.say("Last.fm: saved authorization loaded automatically.")
             if not self.dry_run and self.lastfm is None:
                 self.say("Last.fm not authorized; submissions stay queued. Run auth.")
             if not self.fixture:
-                self.say("Waiting for osu! / tosu...")
+                self.say("Waiting for osu!...")
             self._task(self._delivery_loop())
             if self.enable_keyboard:
                 self._task(self._keyboard())
-            adapter = TosuAdapter(self.config.tosu_url)
+            adapter = StateDecoder() if fixture_path else InternalAdapter(output=self.say)
             if self.json_output:
-                self.say(getattr(adapter, "compatibility_notice", "tosu stable telemetry"))
+                self.say(getattr(adapter, "compatibility_notice", "Internal osu! telemetry"))
             try:
                 if fixture_path:
                     frames = json.loads(Path(fixture_path).read_text("utf-8"))
@@ -457,8 +458,9 @@ class Watcher:
                     self.say({"fixture_complete": True, "dry_run_submissions": len(self.previewed)})
                 else:
                     async def consume():
-                        async for telemetry in adapter.stream():
-                            await self.ingest(telemetry)
+                        async with aclosing(adapter.stream()) as stream:
+                            async for telemetry in stream:
+                                await self.ingest(telemetry)
                     consumer = self._task(consume())
                     await self.stop.wait()
                     consumer.cancel()
@@ -497,7 +499,7 @@ class Watcher:
                     import select
                     if select.select([sys.stdin], [], [], 0)[0]:
                         key = sys.stdin.read(1).lower()
-                command = {"f": "force", "i": "info", "v": "info", "e": "export", "q": "quit"}.get(key)
+                command = {"f": "force", "i": "info", "v": "info", "e": "export", "s": "status", "q": "quit"}.get(key)
                 if command:
                     self.say(await self.command({"command": command}), full=key == "v")
                 elif key == "a":

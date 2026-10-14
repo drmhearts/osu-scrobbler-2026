@@ -11,7 +11,7 @@ import sys
 from .config import WatchLock
 from .display import render
 from .ipc import send_command
-from .welcome import welcome
+from .welcome import welcome, commands
 from .terminal import enable_colors, style_message, threshold_prompt
 
 
@@ -49,7 +49,7 @@ def focus_console():
     user.FindWindowW.restype = wintypes.HWND
     # Windows Terminal may host the visible window while GetConsoleWindow only
     # identifies its hidden compatibility console.
-    window = user.FindWindowW(None, "osu! scrobbler") or kernel.GetConsoleWindow()
+    window = user.FindWindowW(None, "osu! life hacks") or kernel.GetConsoleWindow()
     if window:
         user.ShowWindow(window, 9)  # SW_RESTORE
         user.SetForegroundWindow(window)
@@ -67,7 +67,7 @@ async def view_command(directory, key):
             return {"error": "Startup could not be changed."}
         return {"message": "Startup: " + ("on" if enabled else "off")}
     if key == "?":
-        return {"message": "s status  v details  e export  a auto-export  r Last.fm  x stop"}
+        return {"message": commands(background=True)}
     if key == "r":
         from .cli import authorize
         import httpx
@@ -141,7 +141,7 @@ async def show_console(directory: Path, *, output=print):
         enable_colors()
         if sys.platform == "win32":
             import ctypes
-            ctypes.windll.kernel32.SetConsoleTitleW("osu! scrobbler")
+            ctypes.windll.kernel32.SetConsoleTitleW("osu! life hacks")
         output(welcome(directory, background=True))
         feed = ActivityFeed(directory)
         try:

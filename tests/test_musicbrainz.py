@@ -60,7 +60,7 @@ async def test_selection_lookup_unicode_and_album_fallback(tmp_path, no_real_sle
     assert result.track.album_artist == "宇多田ヒカル"
     assert result.track.release_id is None
     assert result.track.details["album_source"] == "track-title fallback"
-    assert all(f"osu-scrobbler/{__version__}" in request.headers["User-Agent"] for request in calls)
+    assert all(f"osu-life-hacks/{__version__}" in request.headers["User-Agent"] for request in calls)
     assert "光" in calls[0].url.params["query"]
     await mb.aclose()
     await http_client.aclose()
@@ -196,6 +196,7 @@ async def test_all_requests_serialized_and_rate_limited(tmp_path, no_real_sleep)
 
     def handler(request):
         starts.append(no_real_sleep[0])
+        assert "Hky Sigh" in request.headers["User-Agent"]
         assert "github.com/drmhearts/osu-scrobbler-2026" in request.headers["User-Agent"]
         return httpx.Response(200, json={"recordings": []})
 

@@ -1,40 +1,15 @@
-"""Read-only local tosu adapters; no process handles or memory offsets.
-
-v2 supplies metadata, pauses and failures.  Its StreamCompanion endpoint supplies
-the watching/playing distinction absent from v2.  Unknown evidence never counts
-as gameplay.  See docs/telemetry.md for the schema and compatibility boundary.
-"""
-
+"""Internal game-state normalization and retry-safe playback observations."""
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import ipaddress
-import json
 import math
 import time
+from dataclasses import replace
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
-from urllib.parse import urlsplit, urlunsplit
 
-from websockets.asyncio.client import connect
-from websockets.exceptions import WebSocketException
 
 from .models import Beatmap, Phase, Telemetry
-
-# tosu applies these read-only filters to this connection, not to game settings.
-# Player names are compared in memory solely to exclude spectating.
-V2_FILTERS = [
-    "client", "error", {"field": "state", "keys": ["number"]},
-    {"field": "beatmap", "keys": ["title", "artist", "titleUnicode", "artistUnicode",
-                                  "checksum", "id", "set", "version",
-                                  {"field": "time", "keys": ["mp3Length", "lastObject", "live"]}]},
-    {"field": "game", "keys": ["paused"]},
-    {"field": "play", "keys": ["failed", "playerName"]},
-    {"field": "profile", "keys": ["name", {"field": "banchoStatus", "keys": ["number"]}]},
-]
-TOKEN_FILTERS = ["status", "rawStatus", "md5", "time"]
-
 
 class TelemetryAdapter(Protocol):
     """Boundary for alternate read-only stable/lazer telemetry adapters."""
@@ -65,81 +40,17 @@ def _id(value: Any) -> int | None:
     return int(number) if number is not None and number > 0 and number.is_integer() else None
 
 
-def _decode(message: str | bytes) -> dict:
-    value = json.loads(message)
-    if not isinstance(value, dict):
-        raise ValueError("tosu sent a JSON value instead of an object")
-    return value
+class StateDecoder:
+    """Pure state machine; parse also supports historical offline fixtures."""
 
-
-def _project(payload: dict, filters: list) -> dict:
-    """Discard unrequested fields even if an older tosu sends a full snapshot."""
-    result = {}
-    for item in filters:
-        if isinstance(item, str):
-            if item in payload:
-                result[item] = payload[item]
-        elif item["field"] in payload:
-            result[item["field"]] = _project(_object(payload[item["field"]]), item["keys"])
-    return result
-
-
-class TosuAdapter:
-    """Read-only stable/lazer adapter for tosu's current public endpoints.
-
-    ``parse`` accepts a matching ``/tokens`` snapshot for deterministic replay.
-    ``stream`` obtains those snapshots itself and rejects stale observations.
-    Only loopback URLs are allowed: tosu publishes local game information.
-    """
-
-    compatibility_notice = (
-        "Gameplay and menu listening use current tosu v2 plus fresh /tokens evidence. "
-        "Stable and lazer are supported; replay, spectator and unknown pause/status "
-        "evidence are excluded. Lazer requires matching local/gameplay player names."
-    )
-
-    def __init__(
-        self,
-        url: str = "ws://127.0.0.1:24050/websocket/v2",
-        *,
-        reconnect_min: float = 0.5,
-        reconnect_max: float = 10.0,
-        stale_after: float = 2.0,
-    ) -> None:
-        parsed = urlsplit(url)
-        hostname = parsed.hostname or ""
-        try:
-            loopback = ipaddress.ip_address(hostname).is_loopback
-        except ValueError:
-            loopback = hostname.lower() == "localhost"
-        if (
-            parsed.scheme not in {"ws", "wss"}
-            or not loopback
-            or parsed.username is not None
-            or parsed.password is not None
-            or parsed.path != "/websocket/v2"
-            or parsed.query
-            or parsed.fragment
-        ):
-            raise ValueError("tosu URL must be a loopback ws(s)://host:port/websocket/v2 URL")
-        # Accessing port checks malformed/out-of-range ports before startup.
-        _ = parsed.port
-        if not 0 < reconnect_min <= reconnect_max <= 60 or not 0 < stale_after <= 60:
-            raise ValueError("reconnect and stale timeouts must be positive and bounded")
-        self.url = url
-        self.tokens_url = urlunsplit(parsed._replace(path="/tokens"))
-        self.reconnect_min = reconnect_min
-        self.reconnect_max = reconnect_max
-        self.stale_after = stale_after
+    def __init__(self):
         self._phase = Phase.DISCONNECTED
-        self._selection: str | None = None
-        self._position: float | None = None
-        self._attempt: str | None = None
+        self._selection = None
+        self._position = None
+        self._attempt = None
         self._attempt_counter = 0
-        self._companion: dict | None = None
-        self._companion_received = -math.inf
         self._menu_context = False
-        self._sample_monotonic: float | None = None
+        self._sample_monotonic = None
         self._state_number = None
 
     def disconnected(self) -> Telemetry:
@@ -188,6 +99,8 @@ class TosuAdapter:
     @staticmethod
     def _personal_play(payload: dict, companion: dict | None, position: float | None) -> bool:
         """Require same-map, near-synchronous source-backed positive evidence."""
+        if "personal" in payload:
+            return payload["personal"] is True
         if companion is None or companion.get("status") != 2 or companion.get("rawStatus") != 2:
             return False
         checksum = _text(_object(payload.get("beatmap")).get("checksum"))
@@ -203,7 +116,7 @@ class TosuAdapter:
         local_name = _text(profile.get("name"))
         player_name = _text(_object(payload.get("play")).get("playerName"))
         if _text(payload.get("client")).casefold() == "lazer" and not (local_name and player_name):
-            # tosu maps single-player spectating to play; its v2 feed does not
+            # The historical fixture source maps single-player spectating to play; its v2 feed does not
             # export the private spectating flag. Unknown identity cannot prove
             # personal gameplay (no osu! API key or account credentials needed).
             return False
@@ -333,7 +246,7 @@ class TosuAdapter:
             interval_reliable = False
         if phase in {Phase.PLAYING, Phase.LISTENING} and (self._attempt is None or retry):
             self._attempt_counter += 1
-            self._attempt = f"tosu:{self._attempt_counter}"
+            self._attempt = f"osu:{self._attempt_counter}"
         elif retry:
             # A retry observed while paused begins counting only once it resumes.
             self._attempt = None
@@ -349,51 +262,72 @@ class TosuAdapter:
             self._attempt = None
         return event
 
-    async def _watch_tokens(self) -> None:
-        delay = self.reconnect_min
-        while True:
-            try:
-                async with connect(self.tokens_url, open_timeout=5, max_size=4 * 1024 * 1024) as socket:
-                    await socket.send("applyFilters:" + json.dumps(TOKEN_FILTERS))
-                    while True:
-                        async with asyncio.timeout(self.stale_after):
-                            message = await socket.recv()
-                        self._companion = _project(_decode(message), TOKEN_FILTERS)
-                        del message
-                        self._companion_received = time.monotonic()
-                        delay = self.reconnect_min
-            except (OSError, TimeoutError, WebSocketException, ValueError):
-                self._companion = None
-                self._companion_received = -math.inf
-                await asyncio.sleep(delay)
-                delay = min(self.reconnect_max, delay * 2)
 
-    async def stream(self) -> AsyncIterator[Telemetry]:
-        """Reconnect indefinitely with bounded backoff and explicit loss events."""
-        companion_task = asyncio.create_task(self._watch_tokens())
-        delay = self.reconnect_min
+
+class InternalAdapter(StateDecoder):
+    compatibility_notice = "Internal read-only Stable/lazer readers; unsupported layouts pause counting."
+
+    def __init__(self, *, manager=None, output=lambda message: None, poll_interval=.1):
+        super().__init__()
+        from .readers.manager import ReaderManager
+        self.manager = manager if manager is not None else ReaderManager()
+        self.output = output
+        self.poll_interval = poll_interval
+        self._last_notice = None
+        self._last_sample = None
+        self._last_at = None
+        self._process_identity = None
+
+    def observe(self, sample, *, monotonic=None):
+        sample.validate()
+        now = time.monotonic() if monotonic is None else monotonic
+        previous = self._last_sample
+        same = previous and previous.client == sample.client and previous.beatmap['checksum'] == sample.beatmap['checksum']
+        delta = sample.position_ms - previous.position_ms if same else 0
+        elapsed = now - self._last_at if self._last_at is not None else 0
+        advancing = same and 0 < delta <= max(1000, elapsed * 2000 + 250)
+        # An initial <=1s observation establishes an attempt, but earns no time.
+        start = sample.state == 2 and 0 <= sample.position_ms <= 1000 and (not same or delta < -250 or previous.state != 2)
+        paused = not (advancing or start)
+        payload = {'client': sample.client, 'state': {'number': sample.state},
+                   'beatmap': sample.beatmap | {'time': sample.beatmap['time'] | {'live': sample.position_ms}},
+                   'personal': sample.personal, 'game': {'paused': paused}, 'play': {'failed': sample.failed}}
+        # A single coherent local sample replaces the two independent feeds.
+        evidence = {'rawStatus': sample.state, 'status': 2 if sample.state == 2 and sample.personal else
+                    32 if sample.state in {7, 14, 17, 18} else 1 if sample.state == 0 else 8,
+                    'md5': sample.beatmap['checksum'], 'time': sample.position_ms / 1000}
+        event = self.parse(payload, companion=evidence, monotonic=now)
+        if (self._last_at is not None and elapsed > 2) or (sample.state == 2 and not advancing and not start):
+            event = replace(event, interval_reliable=False, completed=False)
+        self._last_sample, self._last_at = sample, now
+        return event
+
+    async def stream(self):
+        from .readers.memory import ReaderUnavailable
         try:
             while True:
                 try:
-                    async with connect(self.url, open_timeout=5, max_size=4 * 1024 * 1024) as socket:
-                        await socket.send("applyFilters:" + json.dumps(V2_FILTERS))
-                        while True:
-                            async with asyncio.timeout(self.stale_after):
-                                message = await socket.recv()
-                            payload = _project(_decode(message), V2_FILTERS)
-                            del message
-                            companion = (
-                                self._companion
-                                if time.monotonic() - self._companion_received <= self.stale_after
-                                else None
-                            )
-                            yield self.parse(payload, companion=companion)
-                            delay = self.reconnect_min
-                except (OSError, TimeoutError, WebSocketException, ValueError):
+                    # Polling is bounded and synchronous: no orphan worker thread
+                    # can continue using a process handle after cancellation.
+                    sample = self.manager.read()
+                    identity = getattr(self.manager, 'selected', None)
+                    if self._process_identity is not None and identity != self._process_identity:
+                        self._attempt = self._selection = self._position = None
+                        self._last_sample = None
+                        yield self.disconnected()
+                    self._process_identity = identity
+                    event = self.observe(sample)
+                    self._last_notice = None
+                    yield event
+                    delay = self.poll_interval
+                except (ReaderUnavailable, OSError, ValueError) as error:
+                    message = str(error)
+                    if message != self._last_notice:
+                        self.output(message)
+                        self._last_notice = message
+                    self._last_sample = None
                     yield self.disconnected()
-                    await asyncio.sleep(delay)
-                    delay = min(self.reconnect_max, delay * 2)
+                    delay = 1.0
+                await asyncio.sleep(delay)
         finally:
-            companion_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await companion_task
+            self.manager.close()

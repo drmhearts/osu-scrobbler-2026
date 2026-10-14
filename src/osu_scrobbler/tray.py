@@ -17,7 +17,7 @@ from .config import Config, WatchLock, default_data_dir
 from .ipc import CommandServer, send_command
 
 GAME_PROCESSES = {"osu!.exe", "osu.exe", "osulazer.exe"}
-RELEVANT_PROCESSES = GAME_PROCESSES | {"tosu.exe"}
+RELEVANT_PROCESSES = GAME_PROCESSES
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
 
@@ -115,23 +115,6 @@ def process_names():
     return names
 
 
-def find_tosu(config: Config, *, home=None):
-    if config.tosu_path:
-        candidate = Path(config.tosu_path).expanduser()
-        return candidate if candidate.is_file() else None
-    home = Path(home) if home is not None else Path.home()
-    for candidate in (home / "Desktop/tosu/tosu.exe", home / "Downloads/tosu/tosu.exe"):
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def start_tosu(path: Path):
-    return subprocess.Popen([str(path.resolve()), "--update=false"], cwd=str(path.resolve().parent),
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-
 async def watcher_available(directory):
     try:
         response = await asyncio.wait_for(send_command(directory, {"command": "status"}), 1)
@@ -166,21 +149,17 @@ class Supervisor:
     """Lifecycle is independent of the native icon so it can be fixture-tested."""
 
     def __init__(self, directory, *, dry_run=False, output=print, watcher_factory=None,
-                 probe=watcher_available, tosu_locator=None, tosu_starter=start_tosu):
+                 probe=watcher_available):
         self.directory = Path(directory)
         self.dry_run = dry_run
         self.output = output
         self.watcher_factory = watcher_factory
         self.probe = probe
-        self.tosu_locator = tosu_locator
-        self.tosu_starter = tosu_starter
         self.watcher = None
         self.task = None
-        self.tosu = None
         self.stop = asyncio.Event()
         self.status = "Waiting for osu!"
         self.retry_at = 0
-        self.tosu_retry_at = 0
         self.last_notice = None
 
     def notice(self, message):
@@ -219,41 +198,15 @@ class Supervisor:
         if storage:
             storage.close()
 
-    def _stop_tosu(self):
-        # Only the process launched by this supervisor belongs to us.
-        if self.tosu is not None and self.tosu.poll() is None:
-            self.tosu.terminate()
-        self.tosu = None
-
     async def tick(self, names, now=None):
         now = time.monotonic() if now is None else now
         names = {name.casefold() for name in names}
         if not names & GAME_PROCESSES:
             await self._stop_watcher()
-            self._stop_tosu()
             self.status = "Waiting for osu!"
             self.notice("Waiting for osu! stable or lazer.")
             return
         config = Config.load(self.directory)
-        if self.tosu is not None and self.tosu.poll() is not None:
-            self.tosu = None
-        if "tosu.exe" not in names and self.tosu is None and now >= self.tosu_retry_at:
-            if self.tosu_locator is None:
-                from .tosu import ensure_tosu
-                try:
-                    path = await ensure_tosu(self.directory)
-                except (OSError, ValueError, RuntimeError, asyncio.TimeoutError):
-                    path = None
-            else:
-                path = self.tosu_locator(config)
-            if path:
-                try:
-                    self.tosu = self.tosu_starter(path)
-                except OSError:
-                    self.notice("Could not start tosu; check config tosu_path.")
-            else:
-                self.notice("tosu not found; automatic setup will retry.")
-            self.tosu_retry_at = now + 30
         if self.task is not None and self.task.done():
             try:
                 self.task.result()
@@ -297,7 +250,6 @@ class Supervisor:
                     pass
         finally:
             await self._stop_watcher()
-            self._stop_tosu()
 
 
 class TrayApp:
@@ -366,7 +318,7 @@ class TrayApp:
     def run(self):
         def update_status(state):
             self.activity.expire()
-            self.icon.title = f"osu! scrobbler — {state}"
+            self.icon.title = f"osu! life hacks — {state}"
             if self.start_error is not None:
                 self.quit()  # Stop from the monitor, outside the icon setup thread.
 
@@ -444,7 +396,7 @@ def run_tray(directory, *, dry_run=False):
         draw = ImageDraw.Draw(image)
         draw.ellipse((3, 3, 61, 61), fill=(235, 80, 140), outline="white", width=3)
         draw.ellipse((20, 20, 44, 44), fill="white")
-        icon = pystray.Icon("osu-scrobbler", image, "osu! scrobbler — Waiting for osu!")
+        icon = pystray.Icon("osu-scrobbler", image, "osu! life hacks — Waiting for osu!")
         app = TrayApp(directory, icon, dry_run=dry_run)
         from .bootstrap import repair_launcher
         app.replace_legacy = repair_launcher(directory)

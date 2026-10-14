@@ -28,7 +28,7 @@ async def check(directory):
     try:
         health = await wait_for_tray(directory, timeout=35)
         assert health["ready"] is True and health["status"] == "Waiting for osu!"
-        # No first-time authorization, osu!, tosu, or Last.fm contact is needed
+        # No first-time authorization, osu!, or Last.fm contact is needed
         # to verify the actual Windows notification icon and local IPC.
         response = await send_command(directory, {"command": "quit"}, control_name="tray-control.json")
         assert "stopped" in response["message"]

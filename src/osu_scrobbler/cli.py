@@ -16,7 +16,8 @@ from .lastfm import CredentialStore, Credentials, LastFmClient
 
 
 def parser():
-    result = argparse.ArgumentParser(description="Read-only tosu telemetry → MusicBrainz → Last.fm")
+    result = argparse.ArgumentParser(prog="osu-life-hacks",
+        description="osu! life hacks: read-only osu! state → MusicBrainz → Last.fm", epilog="©Hky Sigh, 2026")
     result.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Private configuration/history directory")
     result.add_argument("--json", action="store_true", help="Show structured output instead of short terminal messages")
     result.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
@@ -218,9 +219,9 @@ async def execute(args):
 
 
 def main(argv=None):
-    args = parser().parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    args = parser().parse_args(argv)
     try:
         response = asyncio.run(execute(args))
         if response is not None and sys.stdout is not None:

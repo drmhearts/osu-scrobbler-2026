@@ -9,7 +9,7 @@ Scrobbling never waits for a lookup. Until a confident match or saved correction
 is available, beatmap title/artist are used, album is the track title, and album
 artist is the artist. Missing, ambiguous, unavailable and slow lookups still
 qualify after half the song's length in active listening. Audio duration comes
-from tosu first, then the database. Unknown duration prevents automatic submission;
+from the internal audio-clock reader first, then the database. Unknown duration prevents automatic submission;
 force remains available. A late match
 does not resubmit an already queued or accepted play.
 
@@ -26,7 +26,9 @@ recording/release details from corrected submission metadata; missing fields
 remain unknown.
 
 Requests are serialized at least one second apart and use
-`osu-scrobbler/VERSION (https://github.com/drmhearts/osu-scrobbler-2026)` as User-Agent.
+`osu-life-hacks/VERSION (Hky Sigh)` as its visible identifier. The outgoing
+User-Agent also includes the existing project contact URL, as required for API
+identification; that protocol field is not shown in application output.
 Other clients sharing your IP can still cause rate limiting.
 
 Sources: [API](https://musicbrainz.org/doc/MusicBrainz_API),

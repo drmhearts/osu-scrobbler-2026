@@ -9,11 +9,11 @@ import pytest
 
 from osu_scrobbler.models import Phase, Track
 from osu_scrobbler.playback import PlaybackEngine
-from osu_scrobbler.telemetry import TosuAdapter
+from osu_scrobbler.telemetry import StateDecoder
 
 
 def menu_frame(client, state, position):
-    frames = json.loads((Path(__file__).parent / "fixtures/tosu_v2_states.json").read_text("utf-8"))
+    frames = json.loads((Path(__file__).parent / "fixtures/reader_v2_states.json").read_text("utf-8"))
     frame = copy.deepcopy(frames[0])
     frame["payload"]["client"] = client
     frame["payload"]["state"]["number"] = state
@@ -33,7 +33,7 @@ def observe(adapter, engine, frame, at):
 @pytest.mark.parametrize("client", ["stable", "lazer"])
 @pytest.mark.parametrize("state", [0])
 def test_main_menu_scrobbles_after_half_the_song_and_only_once(client, state):
-    adapter, engine = TosuAdapter(), PlaybackEngine()
+    adapter, engine = StateDecoder(), PlaybackEngine()
     assert observe(adapter, engine, menu_frame(client, state, 35), 0) is None
     assert observe(adapter, engine, menu_frame(client, state, 36), 1) is None
     assert engine.phase is Phase.LISTENING
@@ -59,7 +59,7 @@ async def test_song_select_identifies_and_allows_force_without_automatic_scrobbl
             return LookupResult(matched)
         async def info(self, track):
             return track
-    adapter = TosuAdapter()
+    adapter = StateDecoder()
     watcher = Watcher(tmp_path, Config(), dry_run=True, musicbrainz=MusicBrainz(), output=lambda _: None)
     try:
         for at in (0, 1, 200):
@@ -82,7 +82,7 @@ async def test_song_select_identifies_and_allows_force_without_automatic_scrobbl
 
 
 def test_switching_to_song_select_cannot_trigger_a_qualified_automatic_submission():
-    adapter, engine = TosuAdapter(), PlaybackEngine()
+    adapter, engine = StateDecoder(), PlaybackEngine()
     observe(adapter, engine, menu_frame("stable", 0, 35), 0)
     observe(adapter, engine, menu_frame("stable", 0, 36), 1)
     assert observe(adapter, engine, menu_frame("stable", 0, 90.9), 55.9) is None
@@ -92,7 +92,7 @@ def test_switching_to_song_select_cannot_trigger_a_qualified_automatic_submissio
 
 
 def test_menu_pause_and_seek_do_not_count_as_listening():
-    adapter, engine = TosuAdapter(), PlaybackEngine()
+    adapter, engine = StateDecoder(), PlaybackEngine()
     for at, position in [(0, 35), (1, 36), (10, 45)]:
         assert observe(adapter, engine, menu_frame("stable", 0, position), at) is None
     assert engine.active_seconds == 10
@@ -107,7 +107,7 @@ def test_menu_pause_and_seek_do_not_count_as_listening():
 
 @pytest.mark.parametrize("change", [{"status": 8}, {"md5": "another-song"}, {"time": 1000}, {"rawStatus": 2}])
 def test_menu_requires_matching_listening_evidence(change):
-    adapter, engine = TosuAdapter(), PlaybackEngine()
+    adapter, engine = StateDecoder(), PlaybackEngine()
     observe(adapter, engine, menu_frame("stable", 0, 35), 0)
     for at in (1, 30, 60):
         frame = menu_frame("stable", 0, 35 + at)
@@ -117,7 +117,7 @@ def test_menu_requires_matching_listening_evidence(change):
 
 
 def test_menu_loop_is_a_fresh_listen_and_disconnect_never_counts_the_gap():
-    adapter, engine = TosuAdapter(), PlaybackEngine()
+    adapter, engine = StateDecoder(), PlaybackEngine()
     observe(adapter, engine, menu_frame("lazer", 0, 35), 0)
     observe(adapter, engine, menu_frame("lazer", 0, 36), 1)
     first = observe(adapter, engine, menu_frame("lazer", 0, 91), 56)
@@ -146,7 +146,7 @@ async def test_menu_fallback_reaches_lastfm_when_lookup_is_unavailable(tmp_path)
             delivered.append(submission)
             return DeliveryResult("accepted", accepted=1)
 
-    adapter = TosuAdapter()
+    adapter = StateDecoder()
     watcher = Watcher(tmp_path, Config(), musicbrainz=MusicBrainz(), lastfm=LastFm(), output=lambda _: None)
     try:
         for at in (0, 1, 55.9, 56):
@@ -168,7 +168,7 @@ async def test_menu_fallback_reaches_lastfm_when_lookup_is_unavailable(tmp_path)
 
 @pytest.mark.parametrize('mode,seconds', [('full', 30), ('seconds', 500)])
 def test_full_length_timer_can_complete_each_natural_menu_loop(mode, seconds):
-    adapter, engine = TosuAdapter(), PlaybackEngine(mode, seconds)
+    adapter, engine = StateDecoder(), PlaybackEngine(mode, seconds)
     for at, position in [(0, 0), (.1, .1), (111.9, 111.9)]:
         assert observe(adapter, engine, menu_frame('stable', 0, position), at) is None
     first = observe(adapter, engine, menu_frame('stable', 0, 0), 112)
@@ -184,9 +184,9 @@ def test_full_length_timer_can_complete_each_natural_menu_loop(mode, seconds):
 @pytest.mark.parametrize('status', [2, 32])
 @pytest.mark.parametrize('mode,seconds', [('full', 30), ('seconds', 500)])
 def test_full_map_and_custom_ceiling_complete_at_actual_game_end(mode, seconds, elapsed, status):
-    frames = json.loads((Path(__file__).parent / 'fixtures/tosu_v2_states.json').read_text('utf-8'))
+    frames = json.loads((Path(__file__).parent / 'fixtures/reader_v2_states.json').read_text('utf-8'))
     playing = copy.deepcopy(next(frame for frame in frames if frame['name'] == 'playing'))
-    adapter, engine = TosuAdapter(), PlaybackEngine(mode, seconds)
+    adapter, engine = StateDecoder(), PlaybackEngine(mode, seconds)
     assert observe(adapter, engine, playing, 0) is None
     final = copy.deepcopy(playing)
     final['payload']['state']['number'] = 7
@@ -202,9 +202,9 @@ def test_full_map_and_custom_ceiling_complete_at_actual_game_end(mode, seconds, 
 
 
 def test_full_map_completion_cannot_count_a_disconnected_interval():
-    frames = json.loads((Path(__file__).parent / 'fixtures/tosu_v2_states.json').read_text('utf-8'))
+    frames = json.loads((Path(__file__).parent / 'fixtures/reader_v2_states.json').read_text('utf-8'))
     playing = copy.deepcopy(next(frame for frame in frames if frame['name'] == 'playing'))
-    adapter, engine = TosuAdapter(), PlaybackEngine('full')
+    adapter, engine = StateDecoder(), PlaybackEngine('full')
     observe(adapter, engine, playing, 0)
     engine.update(adapter.disconnected(), 20, 1700000020)
     resumed = copy.deepcopy(playing)
@@ -218,9 +218,9 @@ def test_full_map_completion_cannot_count_a_disconnected_interval():
 
 
 def test_another_players_results_cannot_complete_a_personal_full_map():
-    frames = json.loads((Path(__file__).parent / 'fixtures/tosu_v2_states.json').read_text('utf-8'))
+    frames = json.loads((Path(__file__).parent / 'fixtures/reader_v2_states.json').read_text('utf-8'))
     playing = copy.deepcopy(next(frame for frame in frames if frame['name'] == 'playing'))
-    adapter, engine = TosuAdapter(), PlaybackEngine('full')
+    adapter, engine = StateDecoder(), PlaybackEngine('full')
     observe(adapter, engine, playing, 0)
     playing['payload']['state']['number'] = 7
     playing['payload']['beatmap']['time']['live'] = 95000

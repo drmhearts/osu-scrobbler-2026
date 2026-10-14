@@ -14,7 +14,6 @@ def no_live_update_check(monkeypatch):
     async def unchanged(*args, **kwargs):
         return False
     monkeypatch.setattr("osu_scrobbler.setup.startup", unchanged)
-    monkeypatch.setattr("osu_scrobbler.setup.ensure_tosu", unchanged)
     monkeypatch.setattr("osu_scrobbler.setup.asyncio.sleep", unchanged)
 
 

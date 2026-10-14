@@ -84,7 +84,7 @@ def render(value, *, full=False, json_output=False):
     if "threshold" in value:
         return "Timer: " + text(value["threshold"])
     if "phase" in value and "active_seconds" not in value:
-        return "Disconnected; waiting for osu! / tosu." if value["phase"] == "disconnected" else ""
+        return "Disconnected; waiting for osu!." if value["phase"] == "disconnected" else ""
     if "connected" in value:
         return "Connected to osu!."
     if "DRY RUN - would submit" in value:

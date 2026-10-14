@@ -28,7 +28,7 @@ from .models import Beatmap, LookupResult, Track
 from . import __version__
 
 DEFAULT_USER_AGENT = (
-    f"osu-scrobbler/{__version__} (https://github.com/drmhearts/osu-scrobbler-2026)"
+    f"osu-life-hacks/{__version__} (Hky Sigh)"
 )
 API_URL = "https://musicbrainz.org/ws/2"
 _CACHE_SECONDS = 7 * 24 * 60 * 60
@@ -272,6 +272,10 @@ class MusicBrainzClient:
         self._db.commit()
         self._client = client or httpx.AsyncClient(timeout=15, follow_redirects=False)
         self._owns_client = client is None
+        # Keep a usable contact for the API protocol without displaying a source
+        # link in the application's default configuration or welcome output.
+        if re.fullmatch(r"osu-life-hacks/[\d.]+ \(Hky Sigh\)", user_agent):
+            user_agent = user_agent[:-1] + "; https://github.com/drmhearts/osu-scrobbler-2026)"
         self._headers = {"User-Agent": user_agent, "Accept": "application/json"}
         self._request_lock = asyncio.Lock()
         self._last_request: float | None = None

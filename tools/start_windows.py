@@ -76,7 +76,7 @@ def main():
             print("Setup unavailable. Re-extract the Windows download and reopen START.cmd.", file=sys.stderr)
         elif not (directory / "setup-state.json").exists():
             import ctypes
-            ctypes.windll.user32.MessageBoxW(None, "Setup unavailable. Re-extract the Windows download and reopen START.cmd.", "osu! scrobbler", 0x10)
+            ctypes.windll.user32.MessageBoxW(None, "Setup unavailable. Re-extract the Windows download and reopen START.cmd.", "osu! life hacks", 0x10)
         return 1
 
 

@@ -21,15 +21,15 @@ def wheel(number="1.0.0", extra=None):
     content = io.BytesIO()
     with ZipFile(content, "w") as archive:
         archive.writestr("osu_scrobbler/__init__.py", f'__version__ = "{number}"\n')
-        archive.writestr(f"osu_scrobbler-{number}.dist-info/METADATA",
-                         f"Metadata-Version: 2.1\nName: osu-scrobbler\nVersion: {number}\n")
+        archive.writestr(f"osu_life_hacks-{number}.dist-info/METADATA",
+                         f"Metadata-Version: 2.1\nName: osu-life-hacks\nVersion: {number}\n")
         if extra:
             archive.writestr(*extra)
     return content.getvalue()
 
 
 def published(content, number="1.0.0"):
-    filename = f"osu_scrobbler-{number}-py3-none-any.whl"
+    filename = f"osu_life_hacks-{number}-py3-none-any.whl"
     return {"draft": False, "prerelease": False, "tag_name": "v" + number,
             "assets": [{"name": filename, "size": len(content), "digest": "sha256:" + hashlib.sha256(content).hexdigest(),
                         "browser_download_url": f"https://github.com/drmhearts/osu-scrobbler-2026/releases/download/v{number}/{filename}"}]}
@@ -327,7 +327,7 @@ async def test_api_limit_falls_back_to_public_checksummed_download(tmp_path):
         if str(request.url).endswith('/releases/latest'):
             return httpx.Response(302, headers={'location': 'https://github.com/drmhearts/osu-scrobbler-2026/releases/tag/v1.0.0'})
         if str(request.url).endswith('/SHA256SUMS.txt'):
-            return httpx.Response(200, text=f'{digest}  osu_scrobbler-1.0.0-py3-none-any.whl\n')
+            return httpx.Response(200, text=f'{digest}  osu_life_hacks-1.0.0-py3-none-any.whl\n')
         return httpx.Response(200, content=content)
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         updater = Updater(tmp_path, client=client)

@@ -10,7 +10,6 @@ from .lastfm import CredentialStore
 from .tray import install_startup, launch_tray, require_windows, startup_installed, wait_for_tray, tray_health
 from .updater import startup, stop_running
 from . import __version__
-from .tosu import ensure_tosu
 from .welcome import welcome
 
 
@@ -25,8 +24,6 @@ def setup_complete(directory):
 async def first_run(directory: Path, *, enable_startup=False, check_updates=True):
     require_windows()
     directory.mkdir(parents=True, exist_ok=True)
-    print("Preparing osu! support…")
-    await ensure_tosu(directory)
     credentials = CredentialStore().load()
     if not credentials or not credentials.session_key:
         from .cli import authorize
@@ -76,7 +73,7 @@ async def launch(directory: Path, *, skip_update_check=False):
         if await process.wait():
             raise RuntimeError("Setup did not finish. Reopen START.cmd to retry.")
         return
-    # Updates and tosu setup stay hidden. Network failures keep the installed app.
+    # Updates stay hidden. Network failures keep the installed app.
     if await startup(directory, command="tray", skip=skip_update_check):
         return
     try:

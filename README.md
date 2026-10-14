@@ -1,34 +1,42 @@
-# osu! scrobbler
+# osu! life hacks
 
-Title. Also a metadata extractor!
+Listen in osu!, identify songs with MusicBrainz, and scrobble to Last.fm.
 
-[Download for Windows](https://github.com/drmhearts/osu-scrobbler-2026/releases/latest/download/osu-scrobbler-windows.zip)
+1. Extract the Windows package and double-click **START.cmd**.
+2. Connect Last.fm once and choose whether to start with Windows.
+3. Open osu! Stable or a supported osu!lazer release. Click the pink tray icon for controls.
 
-1. Extract the download and double-click **START.cmd**.
-2. Connect Last.fm once and choose whether to start with Windows (recommended).
-3. Open osu! (stable or lazer). If you want to use commands or configure anything, click the pink icon in your tray.
-
-Python is included. tosu (what is used to see the song/map playing) installs automatically and runs hidden, without its
-browser or overlay. Any osu! install location works. The app installs in your
-local user folder.
+The Windows package includes Python. The app reads game state directly; no
+external game reader, helper download, overlay, or local WebSocket server is needed.
+Live reading requires Windows x64. Stable uses signature checks; lazer currently
+targets **2026.1005.0 x64**. Other lazer releases wait with a compatibility message.
+These internal readers need live validation on the target installation; see
+[reader compatibility and diagnostics](docs/telemetry.md).
 
 | Key | Action |
 | --- | --- |
-| **i** | Track info |
-| **f** | Force scrobble |
+| **i** / **v** | Track info / full details |
+| **s** / **f** | Status / force scrobble |
 | **t** | Timer: half, full, or seconds |
+| **e** / **a** | Export / toggle automatic export |
+| **r** | Connect Last.fm |
 | **b** | Toggle Windows startup |
 | **u** | Update and restart |
-| **?** | More controls |
-| **q** | Hide the window |
+| **q** / **x** | Hide console / stop app |
 
-Later starts stay in the tray. **x** or tray → Exit stops the app.
+All controls appear on the normal welcome screen. In a foreground `watch`
+session, **q** quits. Later START launches stay in the tray.
 
-Main menu and gameplay trigger automatic scrobbling after at least half the song has been played. In song selection,
-you can still identify tracks and force scrobble / grab metadata. Pauses, seeks and disconnects do not count.
-I try to use musicbrainz to find a matching album, but if it's not found, the track will be treated as a single.
+Main-menu music and personal gameplay count toward automatic scrobbling. Song
+selection identifies music and permits force; it does not count automatically.
+Pauses, seeks, replays, spectating, and unreadable intervals do not count.
+MusicBrainz supplies album metadata where possible; unmatched songs use their
+title as the album. Authentication, queues, history and preferences survive upgrades.
 
-No audio capture, analytics or gameplay uploads.
+No audio capture, analytics or gameplay uploads. See [privacy](docs/privacy.md),
+[background operation](docs/background.md), and [updates](docs/updates.md).
 
-[Source](https://github.com/drmhearts/osu-scrobbler-2026) ·
-[Details](https://github.com/drmhearts/osu-scrobbler-2026/tree/main/docs)
+For development: `python -m pip install -e ".[test]"`, then `python -m pytest`.
+The command is `osu-life-hacks`; `python -m osu_scrobbler` remains supported.
+
+©Hky Sigh, 2026

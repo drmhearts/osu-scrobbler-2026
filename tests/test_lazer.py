@@ -6,12 +6,12 @@ import pytest
 
 from osu_scrobbler.models import Phase, Track
 from osu_scrobbler.playback import PlaybackEngine
-from osu_scrobbler.telemetry import TosuAdapter
+from osu_scrobbler.telemetry import StateDecoder
 
 
 @pytest.fixture
 def frames():
-    path = Path(__file__).parent / "fixtures/tosu_lazer_states.json"
+    path = Path(__file__).parent / "fixtures/reader_lazer_states.json"
     return {frame["name"]: frame for frame in json.loads(path.read_text("utf-8"))}
 
 
@@ -20,7 +20,7 @@ def sample(adapter, frame):
 
 
 def test_lazer_selection_identifies_before_gameplay_and_reports_audio_length(frames):
-    event = sample(TosuAdapter(), frames["selected"])
+    event = sample(StateDecoder(), frames["selected"])
     assert event.phase == Phase.MENU
     assert event.beatmap.title_unicode == "防人想歌"
     assert event.beatmap.duration == 112
@@ -29,7 +29,7 @@ def test_lazer_selection_identifies_before_gameplay_and_reports_audio_length(fra
 
 
 def test_lazer_half_song_threshold_pause_disconnect_and_fresh_retry(frames):
-    adapter = TosuAdapter()
+    adapter = StateDecoder()
     engine = PlaybackEngine()
     def observe(name, at):
         engine.update(sample(adapter, frames[name]), at, 1700000000 + at)
@@ -59,12 +59,12 @@ def test_lazer_half_song_threshold_pause_disconnect_and_fresh_retry(frames):
 def test_lazer_spectating_or_unknown_local_identity_never_counts(frames, change):
     frame = copy.deepcopy(frames["playing"])
     frame["payload"]["profile"].update(change)
-    event = sample(TosuAdapter(), frame)
+    event = sample(StateDecoder(), frame)
     assert event.phase == Phase.PAUSED and not event.interval_reliable
 
 
 def test_lazer_replay_results_and_failure_are_explicit(frames):
-    adapter = TosuAdapter()
+    adapter = StateDecoder()
     sample(adapter, frames["playing"])
     assert sample(adapter, frames["replay"]).phase == Phase.MENU
     assert sample(adapter, frames["results"]).phase == Phase.RESULTS
@@ -72,7 +72,7 @@ def test_lazer_replay_results_and_failure_are_explicit(frames):
 
 
 def test_stable_to_lazer_switch_cannot_accumulate_the_old_attempt(frames):
-    adapter = TosuAdapter()
+    adapter = StateDecoder()
     stable = copy.deepcopy(frames["playing"])
     stable["payload"]["client"] = "stable"
     first = sample(adapter, stable)
@@ -90,5 +90,5 @@ def test_stable_to_lazer_switch_cannot_accumulate_the_old_attempt(frames):
 def test_lazer_companion_must_describe_the_same_personal_gameplay(frames, change):
     frame = copy.deepcopy(frames["playing"])
     frame["tokens"].update(change)
-    event = sample(TosuAdapter(), frame)
+    event = sample(StateDecoder(), frame)
     assert event.phase != Phase.PLAYING and not event.interval_reliable

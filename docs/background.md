@@ -1,18 +1,15 @@
-# Background
+# Background operation
 
-Open **START.cmd**. Press **b** to toggle Windows sign-in startup. The tray monitor
-starts watching when osu! opens. Press **q** to hide the view, click the pink icon
-to reopen it, and press **x** or tray → Exit to stop.
+Open **START.cmd**. **b** toggles Windows sign-in startup; **q** hides the console;
+click the pink tray icon to reopen it; **x** or tray → Exit stops the app.
 
-Only this app's HKCU startup entry changes; no administrator rights or services.
-Python is bundled; tosu downloads from its official release with a pinned SHA256.
-The managed tosu runs hidden with its browser and overlays disabled. An already
-running tosu is reused without changing its settings. Only owned children stop
-when osu! closes. Stable and lazer are detected by process name, regardless of
-their installation folder; no drive scan is needed.
+The tray starts one watcher when osu! opens and stops that watcher when all game
+processes exit. Readers run inside the watcher. No external reader is installed,
+launched, reused or stopped. Python is bundled in the Windows download.
 
-The runtime is copied to `%LOCALAPPDATA%\osu-scrobbler`; Windows startup uses
-that copy. The extracted download can be removed after setup. Its local
-**START.cmd** also remains available in that folder. Subsequent starts stay in
-the tray. Choosing Windows startup closes the first-time setup window after the
-welcome; clicking the icon opens it again.
+Only this app's HKCU startup entry changes. No administrator rights or service
+are required. Startup and credentials retain their existing internal identifiers
+so rebranding does not duplicate startup entries or require reauthorization.
+The profile/runtime remains `%LOCALAPPDATA%\osu-scrobbler` for migration safety.
+The visible title and package/command name are osu! life hacks / `osu-life-hacks`.
+The extracted download can be removed after setup; the installed START remains.

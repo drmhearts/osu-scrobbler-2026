@@ -1,19 +1,19 @@
-## osu! scrobbler 0.4.1
+# osu! life hacks 0.5.0
 
-- Download, extract, **START.cmd**. Python is included; tosu installs automatically.
-- Managed tosu runs hidden, with its browser and overlays disabled.
-- Connect Last.fm once. Later launches and updates stay in the tray.
-- Optional Windows startup uses a local installed copy; the download folder can be removed.
-- Tray startup retries while Windows finishes loading its notification area.
-- Click the pink icon for commands: **t** timer, **b** startup, **u** update.
-- Verified Windows updates include the runtime and keep settings, authorization and history.
+- Internal read-only Stable and lazer readers replace the external reader, its
+  download/setup code, WebSockets and child-process supervision.
+- Lazer targets Windows x64 2026.1005.0; unsupported layouts wait safely.
+- New application/package branding, compact artwork, complete command menu,
+  and the attribution below. The application no longer displays a source link.
+- Existing Last.fm credentials, profile data, timers, tray startup and update
+  verification remain in place. Legacy release aliases allow older updaters to migrate.
 
-Download **osu-scrobbler-windows.zip** (Windows 10/11, x64).
-Internet is needed for first-time tosu installation and Last.fm authorization.
-Existing users can reopen START or press **u**. Authorization, settings and history
-are preserved. Main menu/gameplay count automatically; song selection supports force.
+Download `osu-life-hacks-windows.zip` after this version is published. Source and
+wheel packages remain available. No game-reader download is required. Internet
+is used for Last.fm, MusicBrainz and application updates.
 
-MIT licensed. No analytics or audio capture. Python and dependencies retain their
-licenses; tosu is downloaded unmodified from its official LGPL-3.0 release.
-The source ZIP and wheel remain available for developers and older updaters.
-`SHA256SUMS.txt` verifies all downloads.
+The internal layouts have synthetic regression coverage, not live gameplay
+validation yet. See [compatibility and manual release checks](telemetry.md).
+The source license and dependency licenses are preserved.
+
+©Hky Sigh, 2026

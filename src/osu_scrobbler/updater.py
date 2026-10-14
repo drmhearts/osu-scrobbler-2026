@@ -61,10 +61,10 @@ def release_from_response(data):
     listed_assets = data.get("assets")
     if not isinstance(listed_assets, list):
         raise UpdateError("Invalid release asset list.")
-    portable = "osu-scrobbler-windows.zip"
+    portable = "osu-life-hacks-windows.zip"
     filename = (portable if sys.platform == "win32" and any(
         isinstance(asset, dict) and asset.get("name") == portable for asset in listed_assets)
-        else f"osu_scrobbler-{number}-py3-none-any.whl")
+        else f"osu_life_hacks-{number}-py3-none-any.whl")
     assets = [asset for asset in listed_assets if isinstance(asset, dict) and asset.get("name") == filename]
     if len(assets) != 1:
         raise UpdateError("Release has no matching update package; keeping the installed app.")
@@ -81,11 +81,11 @@ def release_from_response(data):
 
 def package_limit(filename):
     from .portable import MAX_BUNDLE
-    return MAX_BUNDLE if filename == "osu-scrobbler-windows.zip" else MAX_WHEEL
+    return MAX_BUNDLE if filename == "osu-life-hacks-windows.zip" else MAX_WHEEL
 
 
 def verify_package(content, release):
-    if release.filename == "osu-scrobbler-windows.zip":
+    if release.filename == "osu-life-hacks-windows.zip":
         from .portable import verify_archive
         verify_archive(content, release)
     else:
@@ -108,12 +108,12 @@ def verify_wheel(content, release):
                 if (path.is_absolute() or ".." in path.parts or "\\" in entry.orig_filename or "\x00" in entry.orig_filename
                         or ":" in entry.filename or stat.S_ISLNK(entry.external_attr >> 16)):
                     raise UpdateError("Update package contains an unsafe path.")
-            metadata_name = f"osu_scrobbler-{release.version}.dist-info/METADATA"
+            metadata_name = f"osu_life_hacks-{release.version}.dist-info/METADATA"
             metadata_entry = wheel.getinfo(metadata_name)
             if metadata_entry.file_size > 64 * 1024 or "osu_scrobbler/__init__.py" not in names:
                 raise UpdateError("Update package metadata is invalid.")
             metadata = Parser().parsestr(wheel.read(metadata_name).decode("utf-8"))
-            if metadata.get("Name") != "osu-scrobbler" or metadata.get("Version") != release.version:
+            if metadata.get("Name") != "osu-life-hacks" or metadata.get("Version") != release.version:
                 raise UpdateError("Update package identity does not match the release.")
     except (BadZipFile, KeyError, UnicodeError, OSError) as error:
         raise UpdateError("Update package is damaged; keeping the installed app.") from error
@@ -181,7 +181,7 @@ class Updater:
     async def latest(self, installed=__version__):
         if self.client is None:
             async with httpx.AsyncClient(timeout=httpx.Timeout(5, connect=3), follow_redirects=False,
-                                         headers={"User-Agent": f"osu-scrobbler/{__version__}", "Accept": "application/vnd.github+json"}) as client:
+                                         headers={"User-Agent": f"osu-life-hacks/{__version__}", "Accept": "application/vnd.github+json"}) as client:
                 self.client = client
                 try:
                     return await self.latest(installed)
@@ -225,9 +225,9 @@ class Updater:
         base = f"https://github.com/{REPOSITORY}/releases/download/v{number}/"
         checksums = await self._download_bytes(base + "SHA256SUMS.txt", 8192)
         rows = [line.split() for line in checksums.decode("utf-8").splitlines()]
-        portable = "osu-scrobbler-windows.zip"
+        portable = "osu-life-hacks-windows.zip"
         filename = (portable if sys.platform == "win32" and any(len(row) == 2 and row[1] == portable for row in rows)
-                    else f"osu_scrobbler-{number}-py3-none-any.whl")
+                    else f"osu_life_hacks-{number}-py3-none-any.whl")
         hashes = [row[0] for row in rows if len(row) == 2 and row[1] == filename]
         if len(hashes) != 1 or not re.fullmatch(r"[a-f0-9]{64}", hashes[0]):
             raise UpdateError("Release checksums are invalid.")
@@ -254,7 +254,7 @@ class Updater:
     async def download(self, release):
         if self.client is None:
             async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=5), follow_redirects=False,
-                                         headers={"User-Agent": f"osu-scrobbler/{__version__}", "Accept-Encoding": "identity"}) as client:
+                                         headers={"User-Agent": f"osu-life-hacks/{__version__}", "Accept-Encoding": "identity"}) as client:
                 self.client = client
                 try:
                     return await self.download(release)
@@ -284,11 +284,11 @@ class Updater:
         versions = self.root / "versions"
         versions.mkdir(parents=True, exist_ok=True)
         staged = Path(tempfile.mkdtemp(prefix=release.version + "-", dir=versions))
-        portable = release.filename == "osu-scrobbler-windows.zip"
+        portable = release.filename == "osu-life-hacks-windows.zip"
         environment = staged / ("runtime" if portable else "venv")
         activated = False
         try:
-            self.output(f"Installing osu! scrobbler {release.version}…")
+            self.output(f"Installing osu! life hacks {release.version}…")
             if portable:
                 from .portable import PREFIX
                 environment.mkdir()
@@ -354,7 +354,7 @@ class Updater:
         script = ("from osu_scrobbler import __version__; "
                   "from osu_scrobbler import cli, watcher, tray, console; "
                   f"assert __version__ == {number!r}; "
-                  "import httpx, websockets, keyring, unidecode, sys; "
+                  "import httpx, keyring, unidecode, sys; "
                   "exec('if sys.platform == \"win32\":\\n import psutil, pystray, PIL')")
         await self.runner([environment_python(environment), "-c", script], timeout=20)
 

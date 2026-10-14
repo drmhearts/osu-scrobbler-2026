@@ -20,7 +20,7 @@ def runtime(directory, number="1.0.0"):
         path = directory / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-    data = {"name": "osu-scrobbler", "schema": 1, "version": number,
+    data = {"name": "osu-life-hacks", "schema": 1, "version": number,
             "files": {name: hashlib.sha256(content).hexdigest() for name, content in files.items()}}
     (directory / "portable.json").write_text(json.dumps(data))
     return data
@@ -43,7 +43,7 @@ def bundle(directory, number="1.0.0", extra=None):
                 name = raw
             archive.writestr(name, payload)
     content = data.getvalue()
-    return content, Release(number, "osu-scrobbler-windows.zip", "", hashlib.sha256(content).hexdigest(), len(content))
+    return content, Release(number, "osu-life-hacks-windows.zip", "", hashlib.sha256(content).hexdigest(), len(content))
 
 
 class Runner:
@@ -134,7 +134,7 @@ def test_windows_archive_checks_each_file_and_rejects_symlinks(tmp_path):
             if path.is_file():
                 archive.writestr(PREFIX + path.relative_to(source).as_posix(), path.read_bytes())
     data = content.getvalue()
-    release = Release("1.0.0", "osu-scrobbler-windows.zip", "", hashlib.sha256(data).hexdigest(), len(data))
+    release = Release("1.0.0", "osu-life-hacks-windows.zip", "", hashlib.sha256(data).hexdigest(), len(data))
     with pytest.raises(UpdateError, match="file checksum"):
         verify_archive(data, release)
 
@@ -143,11 +143,11 @@ def test_windows_release_selection_prefers_complete_runtime(tmp_path, monkeypatc
     import osu_scrobbler.updater as module
     monkeypatch.setattr(module.sys, "platform", "win32")
     content, release = bundle(tmp_path / "runtime")
-    url = "https://github.com/drmhearts/osu-scrobbler-2026/releases/download/v1.0.0/osu-scrobbler-windows.zip"
+    url = "https://github.com/drmhearts/osu-scrobbler-2026/releases/download/v1.0.0/osu-life-hacks-windows.zip"
     data = {"draft": False, "prerelease": False, "tag_name": "v1.0.0", "assets": [
         {"name": release.filename, "digest": "sha256:" + release.digest, "size": len(content), "browser_download_url": url}]}
     selected = release_from_response(data)
-    assert selected.filename == "osu-scrobbler-windows.zip" and selected.url == url
+    assert selected.filename == "osu-life-hacks-windows.zip" and selected.url == url
 
 
 async def test_public_release_fallback_selects_windows_bundle_with_same_checksums(tmp_path, monkeypatch):
@@ -165,7 +165,7 @@ async def test_public_release_fallback_selects_windows_bundle_with_same_checksum
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
         updater = Updater(tmp_path, client=client)
         selected = await updater.latest("0.3.0")
-        assert selected.filename == "osu-scrobbler-windows.zip"
+        assert selected.filename == "osu-life-hacks-windows.zip"
         assert await updater.download(selected) == content
 
 

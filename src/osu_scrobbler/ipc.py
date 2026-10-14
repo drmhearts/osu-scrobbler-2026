@@ -61,12 +61,12 @@ class CommandServer:
 async def send_command(directory: Path, request: dict, *, control_name="control.json") -> dict:
     path = directory / control_name
     if not path.exists():
-        raise RuntimeError("No watcher is running. Start osu-scrobbler watch first.")
+        raise RuntimeError("No watcher is running. Start osu-life-hacks watch first.")
     control = json.loads(path.read_text("utf-8"))
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", control["port"], limit=4 * 1024 * 1024), 5)
     except OSError as exc:
-        raise RuntimeError("Watcher is unavailable. Restart osu-scrobbler watch.") from exc
+        raise RuntimeError("Watcher is unavailable. Restart osu-life-hacks watch.") from exc
     try:
         request = {**request, "token": control["token"]}
         writer.write((json.dumps(request, ensure_ascii=False) + "\n").encode("utf-8"))
