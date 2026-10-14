@@ -234,6 +234,10 @@ def main(argv=None):
         # These are local validation / safe domain errors; third-party network failures are caught in adapters.
         if sys.stderr is not None:
             print(str(error), file=sys.stderr)
+        elif (args.data_dir / "startup-diagnostics").is_file():
+            # Explicit local diagnostics (used by Windows CI), never enabled
+            # during normal setup and never uploaded by the application.
+            (args.data_dir / "startup-error.txt").write_text(str(error), "utf-8")
         # Background launches never open error dialogs. An intentional setup
         # window reports errors normally; START remains available to retry.
         return 1

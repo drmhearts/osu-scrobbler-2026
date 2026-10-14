@@ -12,6 +12,7 @@ from osu_scrobbler.updater import stop_running
 
 
 async def check(directory):
+    (directory / "startup-diagnostics").touch()
     powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     process = await asyncio.create_subprocess_exec(str(powershell), "-NoProfile", "-NonInteractive",
         "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", str(directory / "launch.ps1"),
@@ -26,6 +27,16 @@ async def check(directory):
         # to verify the actual Windows notification icon and local IPC.
         response = await send_command(directory, {"command": "quit"}, control_name="tray-control.json")
         assert "stopped" in response["message"]
+    except Exception as error:
+        diagnostic = directory / "startup-error.txt"
+        if diagnostic.is_file():
+            print("Native startup error:", diagnostic.read_text("utf-8"), flush=True)
+        try:
+            health = await send_command(directory, {"command": "health"}, control_name="tray-control.json")
+            print("Native monitor health:", health, flush=True)
+        except (RuntimeError, OSError):
+            print("Native monitor did not open its IPC server", flush=True)
+        raise
     finally:
         await stop_running(directory)
     assert not (directory / "tray-control.json").exists()
@@ -33,4 +44,10 @@ async def check(directory):
 
 
 if __name__ == "__main__":
-    asyncio.run(check(Path(sys.argv[1])))
+    try:
+        asyncio.run(check(Path(sys.argv[1])))
+    except Exception:
+        import traceback
+        message = traceback.format_exc().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print("::error::" + message)
+        raise
