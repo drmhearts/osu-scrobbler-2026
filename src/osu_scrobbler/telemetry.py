@@ -294,7 +294,8 @@ class TosuAdapter:
                 async with connect(self.tokens_url, open_timeout=5, max_size=4 * 1024 * 1024) as socket:
                     await socket.send("applyFilters:" + json.dumps(TOKEN_FILTERS))
                     while True:
-                        message = await asyncio.wait_for(socket.recv(), self.stale_after)
+                        async with asyncio.timeout(self.stale_after):
+                            message = await socket.recv()
                         self._companion = _project(_decode(message), TOKEN_FILTERS)
                         del message
                         self._companion_received = time.monotonic()
@@ -315,7 +316,8 @@ class TosuAdapter:
                     async with connect(self.url, open_timeout=5, max_size=4 * 1024 * 1024) as socket:
                         await socket.send("applyFilters:" + json.dumps(V2_FILTERS))
                         while True:
-                            message = await asyncio.wait_for(socket.recv(), self.stale_after)
+                            async with asyncio.timeout(self.stale_after):
+                                message = await socket.recv()
                             payload = _project(_decode(message), V2_FILTERS)
                             del message
                             companion = (
