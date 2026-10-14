@@ -257,28 +257,41 @@ def test_initial_midplay_waits_for_observed_start_and_reconnect_retains_attempt(
 
 
 @pytest.mark.asyncio
-async def test_stale_companion_does_not_count_and_v2_stall_disconnects(frames):
+async def test_stale_companion_does_not_count_and_v2_stall_disconnects(frames, monkeypatch):
+    from types import SimpleNamespace
+    from osu_scrobbler import telemetry
+
+    # Control freshness independently of Windows timer resolution and socket scheduling.
+    clock = [0.0]
+    monkeypatch.setattr(telemetry, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    send_stale = asyncio.Event()
+
     async def handler(socket):
         if socket.request.path == "/tokens":
             await socket.send(json.dumps(frames["playing"]["tokens"]))
-            await asyncio.sleep(0.2)
         else:
-            for delay in (0.01, 0.03, 0.03, 0.03):
-                await asyncio.sleep(delay)
-                await socket.send(json.dumps(frames["playing"]["payload"]))
-            await asyncio.sleep(0.2)
+            async with asyncio.timeout(3):
+                while adapter._companion is None:
+                    await asyncio.sleep(0)
+            await socket.send(json.dumps(frames["playing"]["payload"]))
+            await send_stale.wait()
+            await socket.send(json.dumps(frames["playing"]["payload"]))
+        # Leave both sockets open: loss must come from the receive timeout.
+        await socket.wait_closed()
 
     async with serve(handler, "127.0.0.1", 0) as server:
         port = server.sockets[0].getsockname()[1]
-        adapter = TosuAdapter(f"ws://127.0.0.1:{port}/websocket/v2", reconnect_min=0.1, reconnect_max=0.1, stale_after=0.05)
+        adapter = TosuAdapter(f"ws://127.0.0.1:{port}/websocket/v2", reconnect_min=10, reconnect_max=10, stale_after=1)
         iterator = adapter.stream()
-        first = await asyncio.wait_for(anext(iterator), 1)
-        await asyncio.wait_for(anext(iterator), 1)
-        stale = await asyncio.wait_for(anext(iterator), 1)
-        await asyncio.wait_for(anext(iterator), 1)
-        loss = await asyncio.wait_for(anext(iterator), 1)
-        await iterator.aclose()
-    assert first.phase is Phase.PLAYING  # Fresh companion arrived before v2.
+        try:
+            first = await asyncio.wait_for(anext(iterator), 3)
+            clock[0] = 2.0
+            send_stale.set()
+            stale = await asyncio.wait_for(anext(iterator), 3)
+            loss = await asyncio.wait_for(anext(iterator), 3)
+        finally:
+            await iterator.aclose()
+    assert first.phase is Phase.PLAYING
     assert stale.phase is Phase.PAUSED
     assert loss.phase is Phase.DISCONNECTED
 

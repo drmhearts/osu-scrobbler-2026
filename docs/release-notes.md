@@ -1,4 +1,4 @@
-## Try osu! scrobbler 0.2.2
+## Try osu! scrobbler 0.2.3
 
 Download **osu-scrobbler-windows-source.zip** below and extract it into a permanent folder.
 

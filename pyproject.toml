@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osu-scrobbler"
-version = "0.2.2"
+version = "0.2.3"
 description = "A Windows-first terminal osu! scrobbler using tosu, MusicBrainz and Last.fm"
 license = {file = "LICENSE"}
 requires-python = ">=3.11"
