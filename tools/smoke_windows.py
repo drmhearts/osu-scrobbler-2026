@@ -1,6 +1,7 @@
 """Check the actual installed launcher, native tray and clean shutdown in CI."""
 
 import asyncio
+import ctypes
 import os
 from pathlib import Path
 import subprocess
@@ -12,6 +13,10 @@ from osu_scrobbler.updater import stop_running
 
 
 async def check(directory):
+    ctypes.windll.user32.GetShellWindow.restype = ctypes.c_void_p
+    if not ctypes.windll.user32.GetShellWindow():
+        print("::notice::Native notification-icon check unavailable: this Windows runner has no desktop shell. Runtime/install checks passed.")
+        return
     (directory / "startup-diagnostics").touch()
     powershell = Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe"
     process = await asyncio.create_subprocess_exec(str(powershell), "-NoProfile", "-NonInteractive",
@@ -21,7 +26,7 @@ async def check(directory):
     if await process.wait():
         raise RuntimeError("Installed launch script failed")
     try:
-        health = await wait_for_tray(directory, timeout=20)
+        health = await wait_for_tray(directory, timeout=35)
         assert health["ready"] is True and health["status"] == "Waiting for osu!"
         # No first-time authorization, osu!, tosu, or Last.fm contact is needed
         # to verify the actual Windows notification icon and local IPC.
@@ -30,10 +35,11 @@ async def check(directory):
     except Exception as error:
         diagnostic = directory / "startup-error.txt"
         if diagnostic.is_file():
-            print("Native startup error:", diagnostic.read_text("utf-8"), flush=True)
+            message = diagnostic.read_text("utf-8").replace("%", "%25").replace("\n", "%0A").replace("\r", "%0D")
+            print("::error::Native startup error: " + message, flush=True)
         try:
             health = await send_command(directory, {"command": "health"}, control_name="tray-control.json")
-            print("Native monitor health:", health, flush=True)
+            print("::error::Native monitor health: " + repr(health), flush=True)
         except (RuntimeError, OSError):
             print("Native monitor did not open its IPC server", flush=True)
         raise

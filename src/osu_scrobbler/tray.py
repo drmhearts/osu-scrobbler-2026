@@ -145,7 +145,7 @@ async def tray_health(directory):
         directory, {"command": "health"}, control_name="tray-control.json"), 1)
 
 
-async def wait_for_tray(directory, process=None, *, timeout=15):
+async def wait_for_tray(directory, process=None, *, timeout=35):
     """A spawned process is not success until its icon and monitor are ready."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -312,6 +312,23 @@ class TrayApp:
         self.ready = threading.Event()
         self.start_error = None
 
+    def show_icon(self, icon, *, timeout=30):
+        # HKCU startup can run before Explorer's notification area is ready.
+        # pystray's default setup tries once and leaves a failed setup thread.
+        deadline = time.monotonic() + timeout
+        error = None
+        while not self.supervisor.stop.is_set():
+            try:
+                icon.visible = True
+                return
+            except OSError as failure:
+                error = failure
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.25)
+        if error is not None:
+            self.start_error = error
+
     async def handle_command(self, request):
         if request.get("command") == "health":
             from . import __version__
@@ -350,6 +367,8 @@ class TrayApp:
         def update_status(state):
             self.activity.expire()
             self.icon.title = f"osu! scrobbler — {state}"
+            if self.start_error is not None:
+                self.quit()  # Stop from the monitor, outside the icon setup thread.
 
         def background():
             async def monitor():
@@ -378,11 +397,13 @@ class TrayApp:
             kind = type(self.start_error).__name__ if self.start_error else "timeout"
             raise RuntimeError(f"Background monitor could not start ({kind}). Restart START.cmd; check local port/settings if it persists.") from self.start_error
         try:
-            self.icon.run()
+            self.icon.run(setup=self.show_icon)
         finally:
             if self.loop is not None and not self.loop.is_closed():
                 self.loop.call_soon_threadsafe(self.supervisor.stop.set)
             self.thread.join(timeout=10)
+        if self.start_error is not None:
+            raise RuntimeError("Windows tray icon could not start. Reopen START.cmd after the desktop is ready.") from self.start_error
 
     async def _replace_legacy_view(self):
         # Older START launches can leave their source-version console open.

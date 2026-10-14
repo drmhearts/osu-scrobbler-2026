@@ -116,8 +116,12 @@ def install_launcher(directory):
         path = directory / name
         content = assets.joinpath(name).read_bytes()
         digest = hashlib.sha256(content).hexdigest()
-        if path.is_symlink() or (path.exists() and hashlib.sha256(path.read_bytes()).hexdigest() not in {previous.get(name), digest}):
+        old = hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+        if path.is_symlink() or (path.exists() and old not in {previous.get(name), digest}):
             continue
+        if old == digest:
+            installed[name] = digest
+            continue  # Windows can still have the launching CMD/PowerShell file open.
         temporary = path.with_suffix(".updating")
         temporary.write_bytes(content)
         temporary.replace(path)

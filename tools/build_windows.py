@@ -75,7 +75,8 @@ def build(output):
         subprocess.run([str(installed), "-c", "from osu_scrobbler.config import default_data_dir; from pathlib import Path; import sys; "
             "assert default_data_dir()==Path(sys.argv[1]); from osu_scrobbler.cli import parser; assert parser().parse_args(['launch']).command=='launch'",
             str(smoke_profile)], env=clean_env, check=True)
-        subprocess.run([str(installed), str(root / "tools/smoke_windows.py"), str(smoke_profile)], env=clean_env, check=True, timeout=45)
+        for _ in range(3):
+            subprocess.run([str(installed), str(root / "tools/smoke_windows.py"), str(smoke_profile)], env=clean_env, check=True, timeout=90)
         # Validate the public archive, not just the build directory.
         subprocess.run([str(installed), "-c",
             "import sys,hashlib; from pathlib import Path; from osu_scrobbler.portable import verify_archive; "

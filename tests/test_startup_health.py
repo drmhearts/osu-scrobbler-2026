@@ -61,3 +61,37 @@ async def test_failed_updated_tray_is_terminated_and_reported(tmp_path, monkeypa
     with pytest.raises(updater.UpdateError, match="tray failed to start"):
         await updater.handoff(tmp_path / "env", tmp_path, "tray")
     assert events == ["terminate", "wait"]
+
+
+def test_tray_retries_notification_area_when_windows_desktop_is_still_starting(tmp_path, monkeypatch):
+    import osu_scrobbler.tray as module
+    class Icon:
+        attempts = 0
+        _visible = False
+        @property
+        def visible(self):
+            return self._visible
+        @visible.setter
+        def visible(self, value):
+            self.attempts += 1
+            if self.attempts == 1:
+                raise OSError("Notification area not ready")
+            self._visible = value
+    icon = Icon()
+    app = TrayApp(tmp_path, icon)
+    monkeypatch.setattr(module.time, "sleep", lambda _: None)
+    app.show_icon(icon)
+    assert icon.visible and icon.attempts == 2 and app.start_error is None
+
+
+def test_unavailable_notification_area_is_reported_without_hanging_forever(tmp_path):
+    class Icon:
+        @property
+        def visible(self):
+            return False
+        @visible.setter
+        def visible(self, value):
+            raise OSError("No desktop shell")
+    app = TrayApp(tmp_path, Icon())
+    app.show_icon(app.icon, timeout=0)
+    assert isinstance(app.start_error, OSError)

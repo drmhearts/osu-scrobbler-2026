@@ -1,9 +1,10 @@
-## osu! scrobbler 0.4.0
+## osu! scrobbler 0.4.1
 
 - Download, extract, **START.cmd**. Python is included; tosu installs automatically.
 - Managed tosu runs hidden, with its browser and overlays disabled.
 - Connect Last.fm once. Later launches and updates stay in the tray.
 - Optional Windows startup uses a local installed copy; the download folder can be removed.
+- Tray startup retries while Windows finishes loading its notification area.
 - Click the pink icon for commands: **t** timer, **b** startup, **u** update.
 - Verified Windows updates include the runtime and keep settings, authorization and history.
 

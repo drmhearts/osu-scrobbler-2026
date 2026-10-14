@@ -175,3 +175,15 @@ def test_local_owned_launcher_preserves_user_edits(tmp_path):
     install_launcher(tmp_path)
     assert (tmp_path / "START.cmd").read_text() == "custom start"
     assert (tmp_path / "launch.ps1").is_file()
+
+
+def test_matching_launcher_is_not_replaced_while_windows_may_be_executing_it(tmp_path, monkeypatch):
+    install_launcher(tmp_path)
+    original = Path.replace
+    def replacing(self, target):
+        if Path(target).name in {"START.cmd", "launch.ps1"}:
+            raise PermissionError("Windows is executing this file")
+        return original(self, target)
+    monkeypatch.setattr(Path, "replace", replacing)
+    install_launcher(tmp_path)
+    assert (tmp_path / "START.cmd").is_file() and (tmp_path / "launch.ps1").is_file()
