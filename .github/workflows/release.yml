@@ -22,7 +22,7 @@ jobs:
       - name: Select tagged release source
         run: |
           release_tag="${GITHUB_REF_NAME#release/}"
-          git fetch --depth=1 origin "refs/tags/$release_tag:refs/tags/$release_tag"
+          git fetch --force --depth=1 origin "refs/tags/$release_tag:refs/tags/$release_tag"
           git checkout --detach "$release_tag"
           echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
