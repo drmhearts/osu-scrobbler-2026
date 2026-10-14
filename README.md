@@ -1,6 +1,6 @@
 # osu! life hacks
 
-Title. osu scrobbler to lastfm. Also a metadata extractor!
+So basically
 
 1. Extract the Windows package and double-click **START.cmd**.
 2. Connect Last.fm once and choose whether to start with Windows.
