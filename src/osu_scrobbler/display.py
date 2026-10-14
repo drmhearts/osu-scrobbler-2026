@@ -48,9 +48,7 @@ def info(value, full=False):
     release = value.get("release") or {}
     fallback = release.get("album_source") == "track-title fallback"
     lines = [song(selected), album({**selected, "album_fallback": fallback}),
-             f"Album artist: {text(selected.get('album_artist'))}",
-             f"Duration: {duration(selected.get('duration'))}",
-             f"Release: {text(release.get('date'))} | {text(release.get('type'))} | {text(release.get('country'))}"]
+             f"Album artist: {text(selected.get('album_artist'))}"]
     if not full:
         return "\n".join(lines)
     lines.extend(["", "Recording (MusicBrainz)", f"  Track: {song(recording)}",
@@ -82,11 +80,9 @@ def render(value, *, full=False, json_output=False):
     if "selected" in value:
         return f"Selected: {song(value['selected'])}"
     if "identification" in value:
-        if value.get("track"):
-            track = value["track"]
-            label = "Using beatmap metadata" if value.get("beatmap_fallback") else "Identified"
-            return f"{label}: {song(track)}\n{album(track)}"
-        return "Title and artist needed; automatic scrobbling is waiting."
+        return ""
+    if "threshold" in value:
+        return "Timer: " + text(value["threshold"])
     if "phase" in value and "active_seconds" not in value:
         return "Disconnected; waiting for osu! / tosu." if value["phase"] == "disconnected" else ""
     if "connected" in value:
@@ -105,10 +101,7 @@ def render(value, *, full=False, json_output=False):
     if "exact_metadata" in value:
         track = value["exact_metadata"]
         lines = [f"{'DRY RUN — would force' if value.get('dry_run') else 'Force queued'}: {song(track)}",
-                 album(track), f"Album artist: {text(track.get('album_artist'))}",
-                 f"Duration: {duration(track.get('duration'))}",
-                 f"Recording ID: {text(track.get('recording_id'))}",
-                 f"Playback timestamp: {text(value.get('playback_start'))}"]
+                 album(track), f"Album artist: {text(track.get('album_artist'))}"]
         return "\n".join(lines)
     if "active_seconds" in value:
         track = value.get("track") or value.get("beatmap")
@@ -121,7 +114,7 @@ def render(value, *, full=False, json_output=False):
         if value.get("dry_run"):
             lines.append("Dry run: no Last.fm writes.")
         if value.get("suppressed"):
-            lines.append("Already scrobbled. Start a fresh play and listen to half the song to scrobble again.")
+            lines.append("Already scrobbled. Start a fresh listen to scrobble again.")
         if value.get("candidates"):
             lines.extend(candidates(value["candidates"]))
         elif not value.get("track"):

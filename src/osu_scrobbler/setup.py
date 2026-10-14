@@ -7,8 +7,9 @@ import subprocess
 
 from .console import show_console
 from .lastfm import CredentialStore
-from .tray import install_startup, launch_tray, require_windows, startup_installed, wait_for_tray
-from .updater import startup
+from .tray import install_startup, launch_tray, require_windows, startup_installed, wait_for_tray, tray_health
+from .updater import startup, stop_running
+from . import __version__
 
 
 def setup_complete(directory):
@@ -19,7 +20,7 @@ def setup_complete(directory):
         return False
 
 
-async def first_run(directory: Path, *, enable_startup=False):
+async def first_run(directory: Path, *, enable_startup=False, check_updates=True):
     require_windows()
     directory.mkdir(parents=True, exist_ok=True)
     credentials = CredentialStore().load()
@@ -27,8 +28,6 @@ async def first_run(directory: Path, *, enable_startup=False):
         from .cli import authorize
         print("Connect Last.fm once. Credentials stay in Windows Credential Manager.")
         await authorize(directory)
-    else:
-        print("Last.fm authorization remembered.")
     registered = startup_installed(directory)
     if not setup_complete(directory) and not enable_startup and not registered:
         answer = await asyncio.to_thread(input, "Start automatically when you sign in to Windows? [y/N]: ")
@@ -42,9 +41,16 @@ async def first_run(directory: Path, *, enable_startup=False):
     temporary.replace(marker)
     # Check/install before launching the hidden process, keeping progress and
     # errors visible and keeping long downloads outside the readiness timeout.
-    if not await startup(directory, command="tray", output=print):
-        process = launch_tray(directory, skip_update_check=True)
-        await wait_for_tray(directory, process)
+    if check_updates and await startup(directory, command="setup", enable_startup=enable_startup, output=print):
+        return
+    try:
+        running = await tray_health(directory)
+    except (RuntimeError, OSError, ValueError, asyncio.TimeoutError):
+        running = None
+    if running and running.get("version") != __version__:
+        await stop_running(directory)
+    process = launch_tray(directory, skip_update_check=True)
+    await wait_for_tray(directory, process)
     # Clear installer output only on success; preserve error messages on failure.
     subprocess.run(["cmd.exe", "/d", "/c", "cls"], check=False)
     await show_console(directory)

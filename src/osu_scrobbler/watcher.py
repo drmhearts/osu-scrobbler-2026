@@ -19,6 +19,8 @@ from .playback import DuplicateSuppressed, PlaybackEngine
 from .storage import Storage
 from .telemetry import TosuAdapter
 from .welcome import welcome
+from .threshold import Threshold
+from .terminal import threshold_prompt, enable_colors, style_message
 
 
 def display_info(track: Track) -> dict:
@@ -58,7 +60,8 @@ class Watcher:
         self.json_output = json_output
         self.enable_keyboard = keyboard
         self.delivery_notices = {}
-        self.engine = PlaybackEngine(mode=config.threshold_mode)
+        self.threshold = Threshold.load(directory)
+        self.engine = PlaybackEngine(mode=self.threshold.mode, seconds=self.threshold.seconds)
         self.musicbrainz = musicbrainz or MusicBrainzClient(directory / "musicbrainz.db", config.musicbrainz_user_agent)
         self.storage = storage or Storage(directory / "history.db")
         self.lastfm = lastfm
@@ -79,7 +82,7 @@ class Watcher:
     def say(self, value, *, full=False):
         message = render(value, full=full, json_output=self.json_output)
         if message:
-            self.output(message)
+            self.output(message if self.json_output else style_message(message))
 
     def _task(self, coro):
         task = asyncio.create_task(coro)
@@ -150,7 +153,8 @@ class Watcher:
         except Exception:
             if generation == self.lookup_generation:
                 self.lookup_status = "MusicBrainz unavailable; using beatmap metadata for scrobbling"
-                self.say(self.lookup_status)
+                if self.json_output:
+                    self.say(self.lookup_status)
             return
         if generation != self.lookup_generation:
             return
@@ -179,7 +183,8 @@ class Watcher:
             self.previewed.append(submission)
             self.say({"DRY RUN - would submit": exact})
         else:
-            self.storage.enqueue(submission, state={"aliases:" + submission.id: self.engine.submission_aliases(submission)})
+            self.storage.enqueue(submission, state={"aliases:" + submission.id: self.engine.submission_aliases(submission),
+                                                   "threshold:" + submission.id: self.engine.status()["required_seconds"]})
             self.say({"queued": exact, "offline": self.lastfm is None})
 
     async def deliver_once(self):
@@ -194,7 +199,8 @@ class Watcher:
                          if submission.track.identity in self.delivery_success_clock
                          else now - prior if prior is not None else float("inf"))
                 duration = submission.track.duration
-                spacing = duration / 2 if duration and math.isfinite(duration) and duration > 0 else 0
+                spacing = self.storage.get_state("threshold:" + submission.id,
+                                                 duration / 2 if duration and math.isfinite(duration) and duration > 0 else 0) or 0
                 if since < spacing or mono < self.retry_after.get(submission.id, 0):
                     continue
                 self.storage.mark(submission.id, "sending")
@@ -259,6 +265,16 @@ class Watcher:
 
     async def command(self, request):
         cmd = request.get("command")
+        if cmd == "threshold":
+            if request.get("mode") is not None:
+                try:
+                    setting = Threshold(request["mode"], request.get("seconds", 30)).validate()
+                    setting.save(self.directory)
+                except (ValueError, TypeError):
+                    return {"error": "Choose half, full, or positive seconds."}
+                self.threshold = setting
+                self.engine.mode, self.engine.seconds = setting.mode, setting.seconds
+            return {"threshold": self.threshold.label}
         if cmd == "status":
             return self.status()
         if cmd == "force":
@@ -345,7 +361,10 @@ class Watcher:
             candidate = Config(**{**asdict(self.config), key: request.get("value")})
             candidate.save(self.directory)
             self.config = candidate
-            self.engine.mode = candidate.threshold_mode
+            if key == "threshold_mode":
+                self.threshold = Threshold()
+                self.threshold.save(self.directory)
+                self.engine.mode = "half"
             return {"saved": key, "value": getattr(candidate, key),
                     "restart_required": key in {"tosu_url", "ipc_port", "musicbrainz_user_agent"}}
         if not self.engine.beatmap:
@@ -410,8 +429,9 @@ class Watcher:
             server = CommandServer(self.directory, self.config.ipc_port, self.command)
             await server.start()
             if self.enable_keyboard and not self.fixture and not self.json_output:
+                enable_colors()
                 self.output(welcome(self.directory))
-            mode = "Half-song threshold"
+            mode = "Timer: " + self.threshold.label
             self.say(f"osu! scrobbler | {'DRY RUN — no writes' if self.dry_run else 'Live'} | {mode}")
             if self.enable_keyboard and (self.fixture or self.json_output):
                 self.say("f force | i info | v full info | e export | a auto-export | q quit")
@@ -483,6 +503,37 @@ class Watcher:
                 elif key == "a":
                     self.say(await self.command({"command": "config", "action": "set", "key": "auto_export",
                                                  "value": not self.config.auto_export}))
+                elif key == "t":
+                    async def local_sender(directory, request):
+                        return await self.command(request)
+                    if previous is not None:
+                        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
+                    try:
+                        response = await threshold_prompt(self.directory, sender=local_sender, output=self.output)
+                        if response:
+                            self.say(response)
+                    finally:
+                        if previous is not None:
+                            tty.setcbreak(sys.stdin.fileno())
+                elif key == "r":
+                    from .console import view_command
+                    if previous is not None:
+                        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
+                    try:
+                        response = await asyncio.to_thread(lambda: asyncio.run(view_command(self.directory, "r")))
+                        if response:
+                            self.say(response)
+                    finally:
+                        if previous is not None:
+                            tty.setcbreak(sys.stdin.fileno())
+                elif key in "bu?x" and key:
+                    from .console import view_command
+                    if key == "x":
+                        self.stop.set()
+                    else:
+                        response = await view_command(self.directory, key)
+                        if response:
+                            self.say(response)
                 await asyncio.sleep(0.1)
         finally:
             if previous is not None:

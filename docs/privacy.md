@@ -33,7 +33,7 @@ replacement while leaving the update check. Existing tosu instances keep their
 settings. Installing dependencies also contacts the configured package index.
 
 **Your controls:** Background startup requires choosing **y** in first-run setup,
-`tray --install` or the enable script. `tray --uninstall` removes this profile's startup and stops its monitor;
+pressing **b** in START. **b** toggles startup; **x** stops the monitor;
 **Exit** stops it immediately. No administrator rights, Windows service, global
 keyboard hook, recursive file scan or changes to osu! are used.
 
@@ -44,3 +44,8 @@ data/settings, delete that directory after stopping the app; exports elsewhere
 must be deleted separately. Remove its `osu-scrobbler` entry in Windows Credential
 Manager and revoke the application in Last.fm settings to remove authorization.
 Local deletion does not remove scrobbles already sent to Last.fm.
+
+Timer preferences and the install-folder location are stored locally. The latter
+refreshes this app's known launcher files; user-edited files are preserved. Older
+installs may read their own Python launch chain's executable paths once to find
+the install folder. No other process paths or command lines are collected.

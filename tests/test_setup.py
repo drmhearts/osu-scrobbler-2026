@@ -141,3 +141,28 @@ def test_bootstrap_does_not_mark_a_failed_install_as_ready(tmp_path):
     with pytest.raises(subprocess.CalledProcessError):
         module.prepare(tmp_path, runner=failed)
     assert not (tmp_path / ".venv/scrobbler-installed.sha256").exists()
+
+
+async def test_installed_update_replaces_older_running_backend_before_showing_terminal(tmp_path, monkeypatch):
+    import osu_scrobbler.setup as setup
+    events = []
+    monkeypatch.setattr(setup, 'require_windows', lambda: None)
+    monkeypatch.setattr(setup, 'CredentialStore', lambda: SimpleNamespace(load=lambda: Credentials('key', 'secret', 'session')))
+    monkeypatch.setattr(setup, 'startup_installed', lambda _: True)
+    monkeypatch.setattr(setup, 'install_startup', lambda _: None)
+    async def health(_):
+        return {'ready': True, 'version': '0.2.7'}
+    async def stopped(_):
+        events.append('stop old')
+    async def ready(*args):
+        events.append('new ready')
+    async def shown(*args):
+        events.append('new view')
+    monkeypatch.setattr(setup, 'tray_health', health)
+    monkeypatch.setattr(setup, 'stop_running', stopped)
+    monkeypatch.setattr(setup, 'launch_tray', lambda *args, **kwargs: events.append('launch new'))
+    monkeypatch.setattr(setup, 'wait_for_tray', ready)
+    monkeypatch.setattr(setup, 'show_console', shown)
+    monkeypatch.setattr(setup.subprocess, 'run', lambda *args, **kwargs: None)
+    await first_run(tmp_path, check_updates=False)
+    assert events == ['stop old', 'launch new', 'new ready', 'new view']

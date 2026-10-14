@@ -307,7 +307,9 @@ class TrayApp:
 
     async def handle_command(self, request):
         if request.get("command") == "health":
-            return {"ready": bool(getattr(self.icon, "visible", False)), "status": self.supervisor.status}
+            from . import __version__
+            return {"ready": bool(getattr(self.icon, "visible", False)), "status": self.supervisor.status,
+                    "version": __version__}
         if request.get("command") == "events":
             after = request.get("after", 0)
             if type(after) is not int or after < 0:
@@ -349,6 +351,8 @@ class TrayApp:
                 try:
                     await server.start()
                     self.ready.set()
+                    if getattr(self, "replace_legacy", False):
+                        asyncio.create_task(self._replace_legacy_view())
                     await self.supervisor.run(on_status=update_status)
                 finally:
                     await server.close()
@@ -373,6 +377,24 @@ class TrayApp:
                 self.loop.call_soon_threadsafe(self.supervisor.stop.set)
             self.thread.join(timeout=10)
 
+    async def _replace_legacy_view(self):
+        # Older START launches can leave their source-version console open.
+        await asyncio.sleep(3)
+        try:
+            with WatchLock(self.directory, "console.lock"):
+                return  # Sign-in startup stays hidden.
+        except RuntimeError:
+            (self.directory / "console.exit").touch()
+        for _ in range(20):
+            await asyncio.sleep(0.25)
+            try:
+                with WatchLock(self.directory, "console.lock"):
+                    pass
+            except RuntimeError:
+                continue
+            self.open_console()
+            return
+
 
 def run_tray(directory, *, dry_run=False):
     require_windows()
@@ -391,6 +413,8 @@ def run_tray(directory, *, dry_run=False):
         draw.ellipse((20, 20, 44, 44), fill="white")
         icon = pystray.Icon("osu-scrobbler", image, "osu! scrobbler — Waiting for osu!")
         app = TrayApp(directory, icon, dry_run=dry_run)
+        from .bootstrap import repair_launcher
+        app.replace_legacy = repair_launcher(directory)
         icon.menu = pystray.Menu(pystray.MenuItem("Show terminal", app.open_console, default=True),
                                 pystray.MenuItem("Exit", app.quit))
         app.run()

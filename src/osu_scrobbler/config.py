@@ -2,6 +2,8 @@
 
 import json
 import os
+import sys
+import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -9,6 +11,18 @@ from . import __version__
 
 
 def default_data_dir() -> Path:
+    # Cached runtimes belong to their original profile, including Microsoft
+    # Store filesystem redirects. Avoid moving settings or duplicating long paths.
+    prefix = Path(sys.prefix)
+    if prefix.parent.parent.name == "versions" and prefix.parent.parent.parent.name == "updates":
+        try:
+            marker = json.loads((prefix.parent / "ready.json").read_text("utf-8"))
+            if (prefix.parent.name.startswith(__version__ + "-") and marker.get("version") == __version__
+                    and isinstance(marker.get("digest"), str) and re.fullmatch(r"[a-f0-9]{64}", marker["digest"])
+                    and marker.get("environment") == f"versions/{prefix.parent.name}/venv"):
+                return prefix.parent.parent.parent.parent
+        except (OSError, ValueError, AttributeError):
+            pass
     if os.name == "nt":
         return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "osu-scrobbler"
     return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "osu-scrobbler"

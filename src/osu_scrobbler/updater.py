@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from urllib.parse import urlsplit
 from zipfile import ZipFile, BadZipFile
 
@@ -76,7 +77,7 @@ def release_from_response(data):
 
 
 def verify_wheel(content, release):
-    if len(content) != release.size or hashlib.sha256(content).hexdigest() != release.digest:
+    if len(content) > MAX_WHEEL or (release.size and len(content) != release.size) or hashlib.sha256(content).hexdigest() != release.digest:
         raise UpdateError("Update checksum did not match; keeping the installed app.")
     try:
         with ZipFile(io.BytesIO(content)) as wheel:
@@ -148,7 +149,7 @@ class Updater:
             if not isinstance(relative, str) or not re.fullmatch(r"versions/[0-9.]+-[a-z0-9_\-]+/venv", relative):
                 return None
             environment = self.root / relative
-            if (environment.resolve() != environment.absolute() or not environment_python(environment).is_file()
+            if (environment.resolve() != self.root.resolve() / relative or not environment_python(environment).is_file()
                     or (sys.platform == "win32" and not environment_python(environment, hidden=True).is_file())
                     or not (environment.parent / "ready.json").is_file()):
                 return None
@@ -168,6 +169,12 @@ class Updater:
                     return await self.latest(installed)
                 finally:
                     self.client = None
+        try:
+            return await self._api_latest(installed)
+        except (httpx.HTTPError, ValueError, UpdateError):
+            return await self._public_latest(installed)
+
+    async def _api_latest(self, installed):
         async with self.client.stream("GET", RELEASE_API) as response:
             if response.status_code == 404:
                 return None  # A repository with no release is a normal first install.
@@ -184,6 +191,45 @@ class Updater:
         if isinstance(tag, str) and tag.startswith("v") and version(tag[1:]) <= version(installed):
             return None
         return release_from_response(data)
+
+    async def _public_latest(self, installed):
+        # Public release downloads work even when the unauthenticated API is limited.
+        response = await self.client.get(f"https://github.com/{REPOSITORY}/releases/latest")
+        location = response.headers.get("location", "")
+        if location.startswith("/"):
+            location = "https://github.com" + location
+        prefix = f"https://github.com/{REPOSITORY}/releases/tag/v"
+        if response.status_code not in {301, 302, 303, 307, 308} or not location.startswith(prefix):
+            raise UpdateError("Latest release is unavailable.")
+        number = location[len(prefix):]
+        if version(number) <= version(installed):
+            return None
+        base = f"https://github.com/{REPOSITORY}/releases/download/v{number}/"
+        checksums = await self._download_bytes(base + "SHA256SUMS.txt", 8192)
+        filename = f"osu_scrobbler-{number}-py3-none-any.whl"
+        rows = [line.split() for line in checksums.decode("utf-8").splitlines()]
+        hashes = [row[0] for row in rows if len(row) == 2 and row[1] == filename]
+        if len(hashes) != 1 or not re.fullmatch(r"[a-f0-9]{64}", hashes[0]):
+            raise UpdateError("Release checksums are invalid.")
+        return Release(number, filename, base + filename, hashes[0], 0)
+
+    async def _download_bytes(self, url, limit):
+        for _ in range(5):
+            parsed = urlsplit(url)
+            if parsed.scheme != "https" or parsed.hostname not in DOWNLOAD_HOSTS or parsed.username or parsed.password or parsed.port not in {None, 443}:
+                raise UpdateError("Update download redirected to an unsupported host.")
+            async with self.client.stream("GET", url, headers={"Accept-Encoding": "identity"}) as response:
+                if response.status_code in {301, 302, 303, 307, 308}:
+                    url = response.headers.get("location", "")
+                    continue
+                response.raise_for_status()
+                content = bytearray()
+                async for chunk in response.aiter_bytes():
+                    content.extend(chunk)
+                    if len(content) > limit:
+                        raise UpdateError("Update download is too large.")
+                return bytes(content)
+        raise UpdateError("Too many update redirects.")
 
     async def download(self, release):
         if self.client is None:
@@ -207,7 +253,7 @@ class Updater:
                 content = bytearray()
                 async for chunk in response.aiter_bytes():
                     content.extend(chunk)
-                    if len(content) > release.size or len(content) > MAX_WHEEL:
+                    if (release.size and len(content) > release.size) or len(content) > MAX_WHEEL:
                         raise UpdateError("Update download exceeded its expected size.")
                 verify_wheel(content, release)
                 return bytes(content)
@@ -293,7 +339,24 @@ class Updater:
         raise UpdateError("No previous installation is available.")
 
 
-async def update(directory, *, check_only=False, rollback=False, output=lambda _: None, updater=None):
+async def stop_running(directory):
+    from .ipc import send_command
+    for control in ("tray-control.json", "control.json"):
+        try:
+            await asyncio.wait_for(send_command(directory, {"command": "quit"}, control_name=control), 2)
+        except (OSError, RuntimeError, ValueError, asyncio.TimeoutError):
+            pass
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        try:
+            with WatchLock(directory, "tray.lock"), WatchLock(directory):
+                return
+        except RuntimeError:
+            await asyncio.sleep(0.25)
+    raise UpdateError("The app is still stopping. Try START.cmd again.")
+
+
+async def update(directory, *, check_only=False, rollback=False, output=lambda _: None, updater=None, restart_running=False):
     updater = updater or Updater(directory, output=output)
     updater.root.mkdir(parents=True, exist_ok=True)
     if check_only:
@@ -301,6 +364,21 @@ async def update(directory, *, check_only=False, rollback=False, output=lambda _
         installed = current["version"] if current else __version__
         release = await updater.latest(installed)
         return {"message": f"Update available: {release.version}." if release else f"Up to date: {installed}."}
+    release = None
+    if not restart_running:
+        try:
+            with WatchLock(directory, "tray.lock"), WatchLock(directory):
+                pass
+        except RuntimeError as error:
+            raise UpdateError("An app is already running; stop it before updating.") from error
+    if not rollback:
+        current = updater.current()
+        installed = current["version"] if current else __version__
+        release = await updater.latest(installed)
+        if not release:
+            return {"message": f"Up to date: {installed}."}
+        if restart_running:
+            await stop_running(directory)
     try:
         with WatchLock(directory, "tray.lock"), WatchLock(directory), WatchLock(updater.root, "update.lock"):
             if rollback:
@@ -311,8 +389,7 @@ async def update(directory, *, check_only=False, rollback=False, output=lambda _
                 return {"message": f"Restored {restored}. Start the app again; automatic checks are now disabled."}
             current = updater.current()
             installed = current["version"] if current else __version__
-            release = await updater.latest(installed)
-            if not release:
+            if version(release.version) <= version(installed):
                 return {"message": f"Up to date: {installed}."}
             content = await updater.download(release)
             await updater.install(release, content)
@@ -324,7 +401,7 @@ async def update(directory, *, check_only=False, rollback=False, output=lambda _
 
 
 async def startup(directory, *, command, json_output=False, skip=False, check=True,
-                  dry_run=False, fixture=None, output=lambda _: None):
+                  dry_run=False, fixture=None, output=lambda _: None, enable_startup=False):
     """Return True when a newer isolated installation took over this invocation."""
     if skip:
         return False
@@ -344,14 +421,14 @@ async def startup(directory, *, command, json_output=False, skip=False, check=Tr
             # icon immediately instead of disappearing into another update check.
             if check and Config.load(directory).auto_update:
                 try:
-                    await update(directory, updater=updater, output=output)
+                    await update(directory, updater=updater, output=output, restart_running=command in {"setup", "tray"})
                 except (httpx.HTTPError, OSError, ValueError, UpdateError, asyncio.TimeoutError):
                     output("Update check/install unavailable; continuing with the installed app.")
                 current = updater.current() or current
                 environment = updater.root / current["environment"]
             try:
                 return await handoff(environment, directory, command, json_output=json_output, skip=True,
-                                     dry_run=dry_run, fixture=fixture)
+                                     dry_run=dry_run, fixture=fixture, **({"enable_startup": True} if enable_startup else {}))
             except (UpdateError, OSError, RuntimeError, asyncio.TimeoutError):
                 if command != "tray":
                     raise
@@ -361,7 +438,7 @@ async def startup(directory, *, command, json_output=False, skip=False, check=Tr
                 return False
     if check and Config.load(directory).auto_update:
         try:
-            await update(directory, updater=updater, output=output)
+            await update(directory, updater=updater, output=output, restart_running=command in {"setup", "tray"})
         except (httpx.HTTPError, OSError, ValueError, UpdateError, asyncio.TimeoutError):
             output("Update check/install unavailable; continuing with the installed app.")
             return False
@@ -369,7 +446,8 @@ async def startup(directory, *, command, json_output=False, skip=False, check=Tr
         if installed and installed != broken and (current is None or installed != current):
             environment = updater.root / installed["environment"]
             try:
-                return await handoff(environment, directory, command, json_output=json_output, skip=True)
+                return await handoff(environment, directory, command, json_output=json_output, skip=True,
+                                     **({"enable_startup": True} if enable_startup else {}))
             except (UpdateError, OSError, RuntimeError, asyncio.TimeoutError):
                 if command != "tray":
                     raise
@@ -378,13 +456,15 @@ async def startup(directory, *, command, json_output=False, skip=False, check=Tr
     return False
 
 
-async def handoff(environment, directory, command, *, json_output=False, skip=False, dry_run=False, fixture=None):
+async def handoff(environment, directory, command, *, json_output=False, skip=False, dry_run=False, fixture=None, enable_startup=False):
     arguments = ["-m", "osu_scrobbler", "--data-dir", str(Path(directory).resolve())]
     if json_output:
         arguments.append("--json")
     if skip:
         arguments.append("--skip-update-check")
     arguments.append(command)
+    if enable_startup:
+        arguments.append("--enable-startup")
     if dry_run:
         arguments.append("--dry-run")
     if fixture:

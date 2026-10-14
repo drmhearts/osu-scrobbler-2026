@@ -27,6 +27,7 @@ class Beatmap:
     set_id: int | None = None
     difficulty: str = ""
     audio_path: str = ""
+    play_duration: float | None = None
 
     @property
     def track_key(self) -> str:
@@ -44,6 +45,7 @@ class Telemetry:
     # False when an observation cannot establish whether the preceding sampled
     # interval was personal gameplay (e.g. missing/stale companion evidence).
     interval_reliable: bool = True
+    completed: bool = False
 
 
 @dataclass

@@ -28,7 +28,7 @@ V2_FILTERS = [
     "client", "error", {"field": "state", "keys": ["number"]},
     {"field": "beatmap", "keys": ["title", "artist", "titleUnicode", "artistUnicode",
                                   "checksum", "id", "set", "version",
-                                  {"field": "time", "keys": ["mp3Length", "live"]}]},
+                                  {"field": "time", "keys": ["mp3Length", "lastObject", "live"]}]},
     {"field": "game", "keys": ["paused"]},
     {"field": "play", "keys": ["failed", "playerName"]},
     {"field": "profile", "keys": ["name", {"field": "banchoStatus", "keys": ["number"]}]},
@@ -140,6 +140,7 @@ class TosuAdapter:
         self._companion_received = -math.inf
         self._menu_context = False
         self._sample_monotonic: float | None = None
+        self._state_number = None
 
     def disconnected(self) -> Telemetry:
         self._phase = Phase.DISCONNECTED
@@ -170,6 +171,7 @@ class TosuAdapter:
         selection = f"{_text(payload.get('client')).casefold()}:{selection}"
         audio_ms = _number(_object(raw.get("time")).get("mp3Length"))
         duration = audio_ms / 1000 if audio_ms is not None and audio_ms > 0 else None
+        last_object = _number(_object(raw.get("time")).get("lastObject"))
         return Beatmap(
             selection,
             title or title_unicode,
@@ -180,6 +182,7 @@ class TosuAdapter:
             map_id,
             set_id,
             difficulty,
+            play_duration=last_object / 1000 if last_object is not None and last_object > 0 else None,
         )
 
     @staticmethod
@@ -226,7 +229,10 @@ class TosuAdapter:
         live = _number(_object(_object(payload.get("beatmap")).get("time")).get("live"))
         position = live / 1000 if live is not None else None
         phase = Phase.MENU
-        interval_reliable = True
+        interval_reliable = False
+        loop_complete = False
+        game_complete = False
+        reported_position = position
         now = time.monotonic() if monotonic is None else monotonic
         elapsed = max(0.0, now - self._sample_monotonic) if self._sample_monotonic is not None else 0.0
         menu_context = number == 0  # Only the main menu counts as automatic listening.
@@ -234,6 +240,21 @@ class TosuAdapter:
         supported_client = _text(payload.get("client")).casefold() in {"stable", "lazer"}
         if number in {7, 14, 17, 18}:
             phase = Phase.RESULTS
+            local_name = _text(_object(payload.get("profile")).get("name"))
+            player_name = _text(_object(payload.get("play")).get("playerName"))
+            same_player = not (local_name and player_name and local_name.casefold() != player_name.casefold())
+            if (self._state_number == 2 and self._phase == Phase.PLAYING and self._attempt
+                    and beatmap and selection == self._selection and beatmap.play_duration
+                    and position is not None and position >= beatmap.play_duration - 0.25
+                    and companion and ((companion.get("status") == 32 and companion.get("rawStatus") == number)
+                                       or (companion.get("status") == 2 and companion.get("rawStatus") == 2))
+                    and companion.get("md5") == _text(_object(payload.get("beatmap")).get("checksum"))
+                    and _number(companion.get("time")) is not None and abs(position - companion["time"]) <= 1
+                    and _object(payload.get("play")).get("failed") is False and same_player
+                    and _object(_object(payload.get("profile")).get("banchoStatus")).get("number") != 6):
+                phase = Phase.PLAYING  # Final gameplay interval, before the results state.
+                game_complete = True
+                interval_reliable = True
         elif number == 2:
             game = _object(payload.get("game"))
             play = _object(payload.get("play"))
@@ -281,9 +302,21 @@ class TosuAdapter:
                              and 0 < delta <= max(1.0, elapsed * 2 + 0.25))
             phase = Phase.LISTENING if advancing else Phase.PAUSED if self._attempt and not context_changed else Phase.MENU
             interval_reliable = advancing
+            if (evidence and selection == self._selection and self._phase == Phase.LISTENING
+                    and self._attempt and beatmap.duration and self._position is not None
+                    and 0 <= position <= 1 and self._position >= beatmap.duration - 1
+                    and delta < 0 and 0 < beatmap.duration + delta <= max(1.0, elapsed * 2 + 0.25)):
+                # Credit the final proven interval before resetting the next loop.
+                # Otherwise a full-length timer would always miss the last tick.
+                loop_complete = True
+                phase = Phase.LISTENING
+                interval_reliable = True
+                reported_position = beatmap.duration
 
         selection_changed = selection != self._selection
         retry = (
+            not loop_complete
+            and
             self._attempt is not None
             and not selection_changed
             and phase in {Phase.PLAYING, Phase.LISTENING, Phase.PAUSED}
@@ -309,7 +342,12 @@ class TosuAdapter:
         self._phase = phase
         self._menu_context = menu_context
         self._sample_monotonic = now
-        return Telemetry(beatmap, phase, position, self._attempt, interval_reliable=interval_reliable)
+        self._state_number = number
+        event = Telemetry(beatmap, phase, reported_position, self._attempt, interval_reliable=interval_reliable,
+                          completed=game_complete)
+        if loop_complete:
+            self._attempt = None
+        return event
 
     async def _watch_tokens(self) -> None:
         delay = self.reconnect_min

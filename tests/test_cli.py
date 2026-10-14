@@ -21,7 +21,7 @@ def test_runnable_fixture_dry_run_emits_two_qualifying_attempts_without_history(
     assert result.stdout.count('DRY RUN — would scrobble:') == 2
     assert 'Demo complete: 2 dry-run scrobbles; none sent.' in result.stdout
     assert "防人想歌" in result.stdout
-    assert "Half-song threshold" in result.stdout
+    assert "Timer: Half song" in result.stdout
     assert '"phase"' not in result.stdout
     assert "recording_id" not in result.stdout
     assert len(result.stdout.splitlines()) <= 10
@@ -93,3 +93,15 @@ def test_saved_threshold_settings_migrate_to_half_without_commands(tmp_path, old
     config.save(tmp_path)
     assert json.loads((tmp_path / 'config.json').read_text('utf-8'))['threshold_mode'] == 'custom'
     assert Config.load(tmp_path).threshold_mode == 'half'
+
+
+def test_cached_runtime_default_profile_uses_its_original_data_directory(tmp_path, monkeypatch):
+    import osu_scrobbler.config as config_module
+    from osu_scrobbler import __version__
+    profile = tmp_path / 'original-profile'
+    prefix = profile / 'updates/versions' / (__version__ + '-fixture') / 'venv'
+    prefix.mkdir(parents=True)
+    (prefix.parent / 'ready.json').write_text(json.dumps({'version': __version__,
+        'environment': f'versions/{__version__}-fixture/venv', 'digest': 'a' * 64}))
+    monkeypatch.setattr(config_module.sys, 'prefix', str(prefix))
+    assert config_module.default_data_dir() == profile

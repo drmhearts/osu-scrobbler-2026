@@ -30,15 +30,19 @@ def main():
     package = output / f"osu_scrobbler-{version}-py3-none-any.whl"
     if not package.is_file():
         raise RuntimeError("Expected universal release wheel was not built")
-    files = [root / name for name in ("README.md", "LICENSE", ".gitignore", "pyproject.toml", "START.cmd", "enable-background.cmd", "disable-background.cmd")]
-    for directory in (".github", "docs", "src/osu_scrobbler", "tests", "tools"):
+    files = [root / name for name in ("README.md", "LICENSE", "pyproject.toml", "START.cmd")]
+    files.append(root / "tools/start_windows.py")
+    for directory in ("src/osu_scrobbler",):
         files.extend(path for path in (root / directory).rglob("*")
                      if path.is_file() and not path.is_symlink() and "__pycache__" not in path.parts
-                     and path.suffix in {".py", ".json", ".md", ".yml"})
+                     and path.suffix in {".py", ".json", ".cmd", ".md"})
     source = output / "osu-scrobbler-windows-source.zip"
     with ZipFile(source, "w", ZIP_DEFLATED) as archive:
         for path in sorted(files):
-            info = ZipInfo("osu-scrobbler-2026/" + path.relative_to(root).as_posix())
+            relative = path.relative_to(root).as_posix()
+            if relative not in {"START.cmd", "README.md", "LICENSE"}:
+                relative = "app/" + relative
+            info = ZipInfo("osu-scrobbler-2026/" + relative)
             info.compress_type = ZIP_DEFLATED
             info.external_attr = 0o100644 << 16
             archive.writestr(info, path.read_bytes())

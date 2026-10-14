@@ -37,12 +37,12 @@ def test_main_menu_scrobbles_after_half_the_song_and_only_once(client, state):
     assert observe(adapter, engine, menu_frame(client, state, 35), 0) is None
     assert observe(adapter, engine, menu_frame(client, state, 36), 1) is None
     assert engine.phase is Phase.LISTENING
-    assert observe(adapter, engine, menu_frame(client, state, 91.9), 56.9) is None
-    submission = observe(adapter, engine, menu_frame(client, state, 92), 57)
+    assert observe(adapter, engine, menu_frame(client, state, 90.9), 55.9) is None
+    submission = observe(adapter, engine, menu_frame(client, state, 91), 56)
     assert submission is not None
-    assert submission.playback_start == 1700000001
+    assert submission.playback_start == 1700000000
     assert submission.track.album == submission.track.title
-    engine.mark_success(submission, 1700000057, monotonic=57)
+    engine.mark_success(submission, 1700000056, monotonic=56)
     assert observe(adapter, engine, menu_frame(client, state, 102), 67) is None
 
 
@@ -85,7 +85,7 @@ def test_switching_to_song_select_cannot_trigger_a_qualified_automatic_submissio
     adapter, engine = TosuAdapter(), PlaybackEngine()
     observe(adapter, engine, menu_frame("stable", 0, 35), 0)
     observe(adapter, engine, menu_frame("stable", 0, 36), 1)
-    assert observe(adapter, engine, menu_frame("stable", 0, 91.9), 56.9) is None
+    assert observe(adapter, engine, menu_frame("stable", 0, 90.9), 55.9) is None
     assert observe(adapter, engine, menu_frame("stable", 5, 92.1), 57.1) is None
     assert engine.phase is Phase.MENU
     assert engine.next_submission(57.1, 1700000057.1, manual=True) is not None
@@ -95,14 +95,14 @@ def test_menu_pause_and_seek_do_not_count_as_listening():
     adapter, engine = TosuAdapter(), PlaybackEngine()
     for at, position in [(0, 35), (1, 36), (10, 45)]:
         assert observe(adapter, engine, menu_frame("stable", 0, position), at) is None
-    assert engine.active_seconds == 9
+    assert engine.active_seconds == 10
     assert observe(adapter, engine, menu_frame("stable", 0, 45), 40) is None
-    assert engine.phase is Phase.PAUSED and engine.active_seconds == 9
+    assert engine.phase is Phase.PAUSED and engine.active_seconds == 10
     assert observe(adapter, engine, menu_frame("stable", 0, 60), 41) is None
-    assert engine.active_seconds == 9  # Forward seek adds no listening time.
+    assert engine.active_seconds == 10  # Forward seek adds no listening time.
     assert observe(adapter, engine, menu_frame("stable", 0, 61), 42) is None
-    assert observe(adapter, engine, menu_frame("stable", 0, 107.9), 88.9) is None
-    assert observe(adapter, engine, menu_frame("stable", 0, 108), 89) is not None
+    assert observe(adapter, engine, menu_frame("stable", 0, 106.9), 87.9) is None
+    assert observe(adapter, engine, menu_frame("stable", 0, 107), 88) is not None
 
 
 @pytest.mark.parametrize("change", [{"status": 8}, {"md5": "another-song"}, {"time": 1000}, {"rawStatus": 2}])
@@ -120,8 +120,8 @@ def test_menu_loop_is_a_fresh_listen_and_disconnect_never_counts_the_gap():
     adapter, engine = TosuAdapter(), PlaybackEngine()
     observe(adapter, engine, menu_frame("lazer", 0, 35), 0)
     observe(adapter, engine, menu_frame("lazer", 0, 36), 1)
-    first = observe(adapter, engine, menu_frame("lazer", 0, 92), 57)
-    engine.mark_success(first, 1700000057, monotonic=57)
+    first = observe(adapter, engine, menu_frame("lazer", 0, 91), 56)
+    engine.mark_success(first, 1700000056, monotonic=56)
     assert observe(adapter, engine, menu_frame("lazer", 0, 0), 58) is None
     assert observe(adapter, engine, menu_frame("lazer", 0, 1), 59) is None
     engine.update(adapter.disconnected(), 60, 1700000060)
@@ -149,13 +149,13 @@ async def test_menu_fallback_reaches_lastfm_when_lookup_is_unavailable(tmp_path)
     adapter = TosuAdapter()
     watcher = Watcher(tmp_path, Config(), musicbrainz=MusicBrainz(), lastfm=LastFm(), output=lambda _: None)
     try:
-        for at in (0, 1, 56.9, 57):
+        for at in (0, 1, 55.9, 56):
             frame = menu_frame("stable", 0, 35 + at)
             event = adapter.parse(frame["payload"], companion=frame["tokens"], monotonic=at)
             await watcher.ingest(event, at, 1700000000 + at)
             await asyncio.sleep(0)
             await watcher.deliver_once()
-            assert len(delivered) == (1 if at == 57 else 0)
+            assert len(delivered) == (1 if at == 56 else 0)
         assert delivered[0].track.album == delivered[0].track.title == "防人想歌"
         assert delivered[0].track.album_artist == delivered[0].track.artist
         assert watcher.lookup_status.startswith("MusicBrainz unavailable")
@@ -164,3 +164,66 @@ async def test_menu_fallback_reaches_lastfm_when_lookup_is_unavailable(tmp_path)
             task.cancel()
         await asyncio.gather(*watcher.tasks, return_exceptions=True)
         watcher.storage.close()
+
+
+@pytest.mark.parametrize('mode,seconds', [('full', 30), ('seconds', 500)])
+def test_full_length_timer_can_complete_each_natural_menu_loop(mode, seconds):
+    adapter, engine = TosuAdapter(), PlaybackEngine(mode, seconds)
+    for at, position in [(0, 0), (.1, .1), (111.9, 111.9)]:
+        assert observe(adapter, engine, menu_frame('stable', 0, position), at) is None
+    first = observe(adapter, engine, menu_frame('stable', 0, 0), 112)
+    assert first is not None and first.playback_start == 1700000000
+    engine.mark_success(first, 1700000112, monotonic=112)
+    assert observe(adapter, engine, menu_frame('stable', 0, .1), 112.1) is None
+    assert observe(adapter, engine, menu_frame('stable', 0, 111.9), 223.9) is None
+    second = observe(adapter, engine, menu_frame('stable', 0, 0), 224)
+    assert second is not None and second.attempt_id != first.attempt_id
+
+
+@pytest.mark.parametrize('elapsed', [95, 63])
+@pytest.mark.parametrize('status', [2, 32])
+@pytest.mark.parametrize('mode,seconds', [('full', 30), ('seconds', 500)])
+def test_full_map_and_custom_ceiling_complete_at_actual_game_end(mode, seconds, elapsed, status):
+    frames = json.loads((Path(__file__).parent / 'fixtures/tosu_v2_states.json').read_text('utf-8'))
+    playing = copy.deepcopy(next(frame for frame in frames if frame['name'] == 'playing'))
+    adapter, engine = TosuAdapter(), PlaybackEngine(mode, seconds)
+    assert observe(adapter, engine, playing, 0) is None
+    final = copy.deepcopy(playing)
+    final['payload']['state']['number'] = 7
+    final['payload']['beatmap']['time']['live'] = 95000
+    final['tokens'].update(status=status, rawStatus=7 if status == 32 else 2, time=95)
+    submission = observe(adapter, engine, final, elapsed)
+    assert submission is not None
+    engine.mark_success(submission, 1700000000 + elapsed, monotonic=elapsed)
+    active = engine.active_seconds
+    assert observe(adapter, engine, final, elapsed + 20) is None
+    assert engine.phase is Phase.RESULTS
+    assert engine.active_seconds == active
+
+
+def test_full_map_completion_cannot_count_a_disconnected_interval():
+    frames = json.loads((Path(__file__).parent / 'fixtures/tosu_v2_states.json').read_text('utf-8'))
+    playing = copy.deepcopy(next(frame for frame in frames if frame['name'] == 'playing'))
+    adapter, engine = TosuAdapter(), PlaybackEngine('full')
+    observe(adapter, engine, playing, 0)
+    engine.update(adapter.disconnected(), 20, 1700000020)
+    resumed = copy.deepcopy(playing)
+    resumed['payload']['beatmap']['time']['live'] = 94000
+    resumed['tokens']['time'] = 94
+    observe(adapter, engine, resumed, 94)
+    resumed['payload']['state']['number'] = 7
+    resumed['payload']['beatmap']['time']['live'] = 95000
+    resumed['tokens'].update(status=32, rawStatus=7, time=95)
+    assert observe(adapter, engine, resumed, 95) is None
+
+
+def test_another_players_results_cannot_complete_a_personal_full_map():
+    frames = json.loads((Path(__file__).parent / 'fixtures/tosu_v2_states.json').read_text('utf-8'))
+    playing = copy.deepcopy(next(frame for frame in frames if frame['name'] == 'playing'))
+    adapter, engine = TosuAdapter(), PlaybackEngine('full')
+    observe(adapter, engine, playing, 0)
+    playing['payload']['state']['number'] = 7
+    playing['payload']['beatmap']['time']['live'] = 95000
+    playing['payload']['play']['playerName'] = 'other player'
+    playing['tokens'].update(status=32, rawStatus=7, time=95)
+    assert observe(adapter, engine, playing, 95) is None

@@ -92,3 +92,17 @@ async def test_hiding_terminal_leaves_watcher_running(tmp_path, unused_tcp_port)
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)
         await server.close()
+
+
+async def test_export_and_auto_export_work_from_start_view_with_osu_closed(tmp_path):
+    from osu_scrobbler.config import Config
+    from osu_scrobbler.storage import Storage
+    from osu_scrobbler.models import Submission, Track
+    storage = Storage(tmp_path / 'history.db')
+    storage.enqueue(Submission('export-id', 'attempt', Track('Song', 'Artist', 'Album', 'Artist'), 1700000000, 1700000000))
+    storage.mark('export-id', 'accepted', submitted_at=1700000001)
+    storage.close()
+    assert (await view_command(tmp_path, 'e'))['exported'] == 1
+    assert 'Song' in (tmp_path / 'scrobbles.txt').read_text('utf-8')
+    assert (await view_command(tmp_path, 'a'))['value'] is True
+    assert Config.load(tmp_path).auto_export is True

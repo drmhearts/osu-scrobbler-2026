@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osu-scrobbler"
-version = "0.2.7"
+version = "0.3.0"
 description = "A Windows-first terminal osu! scrobbler using tosu, MusicBrainz and Last.fm"
 license = {file = "LICENSE"}
 requires-python = ">=3.11"
@@ -23,6 +23,9 @@ osu-scrobbler = "osu_scrobbler.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+osu_scrobbler = ["launcher/*.cmd", "launcher/*.py", "launcher/*.json", "launcher/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

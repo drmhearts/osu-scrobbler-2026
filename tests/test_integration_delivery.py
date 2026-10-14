@@ -286,3 +286,20 @@ async def test_explicit_failed_force_retry_reserves_original_delivery_again(setu
     assert len(pending) == 1
     assert pending[0].id == force["id"]
     assert pending[0].manual
+
+
+async def test_custom_timer_delivery_is_not_delayed_by_the_default_half_song_guard(setup):
+    make, ingest, clock = setup
+    client = FakeLastFm(DeliveryResult('accepted', accepted=1), DeliveryResult('accepted', accepted=1))
+    watcher = make(client)
+    await watcher.command({'command': 'threshold', 'mode': 'seconds', 'seconds': 5})
+    await ingest(watcher, Phase.PLAYING, 0, 'one')
+    await ingest(watcher, Phase.PLAYING, 5, 'one')
+    await watcher.deliver_once()
+    assert len(client.calls) == 1
+    await ingest(watcher, Phase.RESULTS, 6, 'one')
+    await ingest(watcher, Phase.PLAYING, 7, 'two')
+    await ingest(watcher, Phase.PLAYING, 12, 'two')
+    await watcher.deliver_once()
+    assert len(client.calls) == 2
+    assert client.calls[0].id != client.calls[1].id

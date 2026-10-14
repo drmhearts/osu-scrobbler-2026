@@ -314,3 +314,86 @@ async def test_handoff_keeps_profile_cleans_python_paths_and_waits_for_manual_wa
     assert "--json" in arguments and "--skip-update-check" in arguments
     assert "PYTHONPATH" not in options["env"] and "PYTHONHOME" not in options["env"]
     assert waits == [True]
+
+
+async def test_api_limit_falls_back_to_public_checksummed_download(tmp_path):
+    content = wheel()
+    digest = hashlib.sha256(content).hexdigest()
+    requests = []
+    def handler(request):
+        requests.append(request)
+        if str(request.url) == RELEASE_API:
+            return httpx.Response(403)
+        if str(request.url).endswith('/releases/latest'):
+            return httpx.Response(302, headers={'location': 'https://github.com/drmhearts/osu-scrobbler-2026/releases/tag/v1.0.0'})
+        if str(request.url).endswith('/SHA256SUMS.txt'):
+            return httpx.Response(200, text=f'{digest}  osu_scrobbler-1.0.0-py3-none-any.whl\n')
+        return httpx.Response(200, content=content)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        updater = Updater(tmp_path, client=client)
+        release = await updater.latest('0.2.7')
+        assert release.version == '1.0.0'
+        assert await updater.download(release) == content
+    assert all(not request.content and 'Authorization' not in request.headers for request in requests)
+
+
+async def test_setup_handoff_switches_entire_interface_and_preserves_startup_choice(tmp_path, monkeypatch):
+    import osu_scrobbler.updater as module
+    calls = []
+    async def spawn(*args, **kwargs):
+        calls.append((args, kwargs))
+        async def finished():
+            return 0
+        return SimpleNamespace(wait=finished)
+    monkeypatch.setattr(module.asyncio, 'create_subprocess_exec', spawn)
+    assert await module.handoff(tmp_path / 'runtime', tmp_path, 'setup', skip=True, enable_startup=True)
+    arguments = calls[0][0]
+    assert 'setup' in arguments and '--enable-startup' in arguments and '--skip-update-check' in arguments
+    assert 'stdout' not in calls[0][1]  # The current version owns the visible terminal.
+
+
+async def test_startup_update_stops_owned_running_instance_only_after_a_new_release_exists(tmp_path):
+    from osu_scrobbler.ipc import CommandServer
+    content = wheel()
+    client, _ = network(content)
+    updater = Updater(tmp_path, client=client, runner=Installer())
+    lock = WatchLock(tmp_path, 'tray.lock')
+    lock.__enter__()
+    commands = []
+    async def handler(request):
+        commands.append(request['command'])
+        lock.__exit__(None, None, None)
+        return {'message': 'stopped'}
+    server = CommandServer(tmp_path, 0, handler, control_name='tray-control.json')
+    await server.start()
+    try:
+        assert 'Updated to 1.0.0' in (await update(tmp_path, updater=updater, restart_running=True))['message']
+        assert commands == ['quit']
+        assert updater.current()['version'] == '1.0.0'
+    finally:
+        await server.close()
+        await client.aclose()
+        lock.__exit__(None, None, None)
+
+
+async def test_profile_root_redirect_is_supported_but_nested_runtime_redirect_is_rejected(tmp_path):
+    import os
+    import subprocess
+    def link(target, path):
+        if os.name == 'nt':
+            subprocess.run(['cmd', '/d', '/c', 'mklink', '/J', str(path), str(target)], capture_output=True, check=True)
+        else:
+            path.symlink_to(target, target_is_directory=True)
+    profile = tmp_path / 'physical-profile'
+    profile.mkdir()
+    updater = Updater(profile, runner=Installer())
+    content = wheel()
+    current = await updater.install(release_from_response(published(content)), content)
+    alias = tmp_path / 'redirected-profile'
+    link(profile, alias)
+    assert Updater(alias).current() == current
+    real_environment = updater.root / current['environment']
+    moved = tmp_path / 'foreign-runtime'
+    real_environment.rename(moved)
+    link(moved, real_environment)
+    assert Updater(alias).current() is None

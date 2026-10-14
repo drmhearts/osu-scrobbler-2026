@@ -5,8 +5,8 @@ session key. HTTPS requests are signed with sorted decoded parameters and MD5.
 Credentials stay in Windows Credential Manager (or a supported native secure
 vault); plaintext fallback and password-based login are not used.
 
-Automatic submission requires **half the song's length** in active gameplay or
-main-menu listening, without a fixed minimum or four-minute cap. Song selection
+Automatic submission uses the saved timer: **half** (default), **full**, or custom
+**seconds** of active gameplay or main-menu listening. Press **t** to change it. Song selection
 only identifies music and supports manual force. Duration uses the actual audio
 length, then database duration; unknown duration needs identification or force.
 Unplayed force is custom listening behavior. Automatic timestamps

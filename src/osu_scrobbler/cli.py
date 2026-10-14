@@ -62,6 +62,8 @@ def parser():
     commands.add_parser("console", help="Open a terminal view of the running background watcher")
     setup = commands.add_parser("setup", help="Connect Last.fm, choose background startup, and open the welcome terminal")
     setup.add_argument("--enable-startup", action="store_true", help="Enable Windows sign-in startup without asking again")
+    setup.add_argument("--disable-startup", action="store_true", help="Disable Windows sign-in startup")
+    setup.add_argument("--update", action="store_true", help="Update and restart the app")
     privacy = commands.add_parser("privacy", help="Explain local data and network requests")
     privacy.add_argument("--clear-cache", action="store_true", help="Remove lookup cache and older activity logs; keep history/corrections (stop watching first)")
     update = commands.add_parser("update", help="Check/install the latest published release without visiting GitHub")
@@ -110,7 +112,20 @@ async def execute(args):
     command = args.command
     if command == "setup":
         from .setup import first_run
-        await first_run(directory, enable_startup=args.enable_startup)
+        from .updater import startup, stop_running
+        if args.disable_startup:
+            from .tray import remove_startup
+            remove_startup(directory)
+            await stop_running(directory)
+            return {"message": "Startup: off."}
+        if args.update:
+            await stop_running(directory)
+            from .updater import update
+            await update(directory, output=print)
+        if await startup(directory, command="setup", skip=args.skip_update_check,
+                         enable_startup=args.enable_startup, output=print):
+            return None
+        await first_run(directory, enable_startup=args.enable_startup, check_updates=False)
         return None
     if command == "update":
         import httpx

@@ -6,7 +6,8 @@ map metadata and `/tokens` for personal-play evidence. Default host:
 
 V2 supplies ordinary/Unicode title and artist, checksum/map/set IDs, difficulty,
 and `beatmap.time.mp3Length` (audio milliseconds, not hit-object
-length). `game.paused`, `play.failed`, and state distinguish gameplay from menus.
+length). `beatmap.time.lastObject` identifies the gameplay endpoint for full/custom
+timers. `game.paused`, `play.failed`, and state distinguish gameplay from menus.
 Song position detects rewinds and confirms menu audio playback; monotonic
 intervals measure real active listening.
 Connection filters request only the fields used by the adapter, dropping unrelated
@@ -55,3 +56,7 @@ selection, pause/resume, retry, failure/results, replay, and exit in dry-run mod
 Lazer source evidence at the same revision: [reader](https://github.com/tosuapp/tosu/blob/a4da331515091db0eeb4b7bf363fcbfbbdfe0ded/packages/tosu/src/memory/lazer.ts)
 (`globalPrecise`, replay/spectator state, hash-addressed audio files) and
 [shared pause detection](https://github.com/tosuapp/tosu/blob/a4da331515091db0eeb4b7bf363fcbfbbdfe0ded/packages/tosu/src/states/global.ts).
+
+Full gameplay timers accept the final completed-map interval only with matching
+map/time and play/results evidence. Repeated results frames add no listening time;
+disconnected or mismatched-player evidence cannot establish full completion.

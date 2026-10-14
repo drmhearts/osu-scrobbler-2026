@@ -12,6 +12,7 @@ from .config import WatchLock
 from .display import render
 from .ipc import send_command
 from .welcome import welcome
+from .terminal import enable_colors, style_message, threshold_prompt
 
 
 class ActivityFeed:
@@ -55,10 +56,63 @@ def focus_console():
 
 
 async def view_command(directory, key):
+    if key == "t":
+        return await threshold_prompt(directory)
+    if key == "b":
+        from .tray import startup_installed, install_startup, remove_startup
+        try:
+            enabled = not startup_installed(directory)
+            (install_startup if enabled else remove_startup)(directory)
+        except (OSError, RuntimeError):
+            return {"error": "Startup could not be changed."}
+        return {"message": "Startup: " + ("on" if enabled else "off")}
+    if key == "?":
+        return {"message": "s status  v details  e export  a auto-export  r Last.fm  x stop"}
+    if key == "r":
+        from .cli import authorize
+        import httpx
+        try:
+            return await authorize(directory)
+        except (httpx.HTTPError, OSError, RuntimeError, ValueError):
+            return {"error": "Last.fm connection failed. Try again."}
+    if key == "x":
+        await send_command(directory, {"command": "quit"}, control_name="tray-control.json")
+        return None
+    if key == "u":
+        from .tray import python_executable
+        import subprocess
+        try:
+            subprocess.Popen([python_executable(), "-m", "osu_scrobbler", "--data-dir", str(directory), "setup", "--update"],
+                             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        except (OSError, RuntimeError):
+            return {"error": "Update could not start."}
+        return {"message": "Updating…"}
     if key == "a":
-        reply = await send_command(directory, {"command": "config"})
-        return await send_command(directory, {"command": "config", "action": "set", "key": "auto_export",
-                                              "value": not reply["config"]["auto_export"]})
+        try:
+            reply = await send_command(directory, {"command": "config"})
+            return await send_command(directory, {"command": "config", "action": "set", "key": "auto_export",
+                                                  "value": not reply["config"]["auto_export"]})
+        except (RuntimeError, OSError, ValueError):
+            from .config import Config
+            config = Config.load(directory)
+            config.auto_export = not config.auto_export
+            config.save(directory)
+            return {"saved": "auto_export", "value": config.auto_export}
+    if key == "e":
+        try:
+            return await send_command(directory, {"command": "export"})
+        except (RuntimeError, OSError, ValueError):
+            from .config import Config
+            from .storage import Storage
+            config = Config.load(directory)
+            storage = Storage(directory / "history.db")
+            try:
+                destination = Path(config.export_path).expanduser() if config.export_path else directory / "scrobbles.txt"
+                return {"exported": storage.export(destination), "destination": str(destination)}
+            except (OSError, ValueError):
+                return {"error": "Export failed. History is preserved."}
+            finally:
+                storage.close()
     command = {"f": "force", "i": "info", "v": "info", "e": "export", "s": "status"}.get(key)
     return await send_command(directory, {"command": command}) if command else None
 
@@ -74,6 +128,8 @@ async def background_status(directory):
 
 async def show_console(directory: Path, *, output=print):
     directory = Path(directory)
+    emit = output
+    output = lambda message: emit(style_message(message))
     try:
         lock = WatchLock(directory, "console.lock")
         lock.__enter__()
@@ -82,6 +138,7 @@ async def show_console(directory: Path, *, output=print):
         return
     previous = None
     try:
+        enable_colors()
         if sys.platform == "win32":
             import ctypes
             ctypes.windll.kernel32.SetConsoleTitleW("osu! scrobbler")
@@ -124,9 +181,15 @@ async def show_console(directory: Path, *, output=print):
                         key = sys.stdin.read(1).lower()
             if key == "q":
                 return
-            if key in "fivesa" and key:
+            if key in "fivesatbu?xr" and key:
                 try:
-                    response = await view_command(directory, key)
+                    if key in {"t", "r"} and previous is not None:
+                        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
+                    try:
+                        response = await view_command(directory, key)
+                    finally:
+                        if key in {"t", "r"} and previous is not None:
+                            tty.setcbreak(sys.stdin.fileno())
                     if response is not None:
                         output(render(response, full=key == "v"))
                 except (RuntimeError, OSError, ValueError):

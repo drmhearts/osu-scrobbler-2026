@@ -11,21 +11,15 @@ def test_default_identification_keeps_track_album_and_hides_internal_metadata():
                   recording_id="recording-uuid", release_id="release-uuid", album_fallback=True,
                   details={"source_links": {"recording": "https://musicbrainz.org/recording/recording-uuid"}})
     output = render({"identification": "Matched", "track": track.to_dict(), "candidates": [track.to_dict()]})
-    assert "夏川陽子 — 防人想歌" in output
-    assert "Album: 防人想歌 (title fallback)" in output
-    assert "uuid" not in output
-    assert "https://" not in output
-    assert len(output.splitlines()) == 2
+    assert output == ""
+    assert "夏川陽子 — 防人想歌" in render({"selected": track.to_dict()})
 
 
 def test_fallback_message_is_brief_and_status_keeps_optional_choices():
     tracks = [Track(f"Song {index}", "Artist", f"Album {index}", "Artist").to_dict() for index in range(1, 6)]
     fallback = Track("Selected song", "Artist", "Selected song", "Artist", album_fallback=True).to_dict()
     output = render({"identification": "Ambiguous", "track": fallback, "beatmap_fallback": True, "candidates": tracks})
-    assert "Using beatmap metadata: Artist — Selected song" in output
-    assert "Album: Selected song (title fallback)" in output
-    assert "waiting" not in output
-    assert "Song 4" not in output
+    assert output == ""
     status = render({"active_seconds": 0, "phase": "menu", "candidates": tracks, "track": fallback})
     assert "5. Artist — Song 5" in status
 
@@ -38,9 +32,9 @@ def test_info_is_brief_by_default_and_full_preserves_recording_release_details()
                                        "id": "release-uuid"}, "source_links": {"recording": "https://musicbrainz.org/recording/recording-uuid"}})
     response = {"info": display_info(track)}
     brief = render(response)
-    assert len(brief.splitlines()) == 5
+    assert len(brief.splitlines()) == 3
     assert "Singer — Song" in brief
-    assert "2026-10-13 | Album | JP" in brief
+    assert "Album artist: Various Artists" in brief
     assert "uuid" not in brief
     full = render(response, full=True)
     assert "Recording (MusicBrainz)" in full and "Release (MusicBrainz)" in full
@@ -85,6 +79,7 @@ def test_json_opt_in_preserves_original_structured_data():
 def test_force_shows_exact_submitted_fields_in_readable_form():
     output = render({"exact_metadata": Track("Track", "Artist", "Album", "Album Artist", 112, "mbid").to_dict(),
                      "playback_start": 1700000000, "dry_run": False})
-    for expected in ("Artist — Track", "Album: Album", "Album artist: Album Artist", "Duration: 1:52",
-                     "Recording ID: mbid", "Playback timestamp: 1700000000"):
+    for expected in ("Artist — Track", "Album: Album", "Album artist: Album Artist"):
         assert expected in output
+
+    assert "mbid" not in output and "1700000000" not in output

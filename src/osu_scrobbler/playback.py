@@ -15,7 +15,7 @@ from .models import Beatmap, Phase, Submission, Telemetry, Track
 
 
 DUPLICATE_MESSAGE = (
-    "Already scrobbled. Start a fresh play and listen to half the song to scrobble again."
+    "Already scrobbled. Start a fresh listen to scrobble again."
 )
 ACTIVE_PHASES = {Phase.PLAYING, Phase.LISTENING}
 
@@ -34,6 +34,9 @@ class _Attempt:
     token: str | None = None
     suppressed: bool = False
     claim: str | None = None
+    context: Phase = Phase.PLAYING
+    complete: bool = False
+    reliable: bool = True
 
 
 @dataclass
@@ -60,10 +63,12 @@ class PlaybackEngine:
     consumes the attempt; retries of delivery should reuse its submission ID.
     """
 
-    def __init__(self, mode: str = "half") -> None:
-        if mode not in {"half", "custom", "standard", "lastfm"}:
+    def __init__(self, mode: str = "half", seconds: float = 30.0) -> None:
+        if mode not in {"half", "full", "seconds", "custom", "standard", "lastfm"}:
             raise ValueError("Threshold mode must be half")
-        self.mode = "half"
+        from .threshold import Threshold
+        setting = Threshold(mode if mode in {"half", "full", "seconds"} else "half", seconds).validate()
+        self.mode, self.seconds = setting.mode, setting.seconds
         self.beatmap: Beatmap | None = None
         self.track: Track | None = None
         self.phase = Phase.DISCONNECTED
@@ -190,6 +195,7 @@ class PlaybackEngine:
             self.beatmap.selection_key,
             wall_time,
             token=telemetry.attempt_token,
+            context=telemetry.phase,
         )
         # Reserve the first future attempt while a force is still queued. Its
         # later acceptance suppresses this exact attempt, not every later play.
@@ -224,6 +230,7 @@ class PlaybackEngine:
             raise ValueError("Clock readings must be finite")
         incoming_phase = telemetry.phase if telemetry.connected else Phase.DISCONNECTED
         previous_phase = self.phase
+        previous_monotonic = self._last_monotonic
         connected = incoming_phase != Phase.DISCONNECTED
         selection_changed = False
         if connected:
@@ -272,9 +279,22 @@ class PlaybackEngine:
         else:
             self._last_monotonic = monotonic
         if fresh:
-            self._start_attempt(telemetry, wall_time)
+            listened = 0.0
+            if (incoming_phase == Phase.LISTENING and previous_phase in {Phase.MENU, Phase.LISTENING}
+                    and not selection_changed and telemetry.interval_reliable
+                    and self._last_wall_time is not None):
+                # The first advancing menu sample proves its preceding interval.
+                # Use the prior sampled clock, including a new loop's first tick.
+                listened = max(0.0, monotonic - previous_monotonic) if previous_monotonic is not None else 0.0
+            self._start_attempt(telemetry, self._last_wall_time if listened else wall_time)
+            self._attempt.active_seconds = listened
         elif self._attempt and telemetry.attempt_token is not None and connected:
             self._attempt.token = telemetry.attempt_token
+        if self._attempt:
+            if not connected or (self._attempt.context == Phase.PLAYING
+                                 and incoming_phase in ACTIVE_PHASES | {Phase.PAUSED} and not telemetry.interval_reliable):
+                self._attempt.reliable = False
+            self._attempt.complete |= telemetry.completed
         self.phase = incoming_phase
         if connected and incoming_phase in ACTIVE_PHASES:
             self._position = telemetry.position
@@ -287,7 +307,15 @@ class PlaybackEngine:
             duration = self.track.duration
         if duration is None or not math.isfinite(duration) or duration <= 0:
             return None
-        return duration / 2.0
+        if self.mode == "half":
+            return duration / 2.0
+        limit = duration
+        if self._attempt and self._attempt.context == Phase.PLAYING:
+            if self.beatmap.play_duration and math.isfinite(self.beatmap.play_duration) and self.beatmap.play_duration > 0:
+                limit = min(limit, self.beatmap.play_duration)
+            if self._attempt.complete and self._attempt.reliable and self._attempt.active_seconds > 0:
+                limit = min(limit, self._attempt.active_seconds)
+        return min(self.seconds, limit) if self.mode == "seconds" else limit
 
     def _history_allows(self, aliases: set[str], monotonic: float, wall_time: float) -> bool:
         for identity in aliases:
@@ -355,7 +383,7 @@ class PlaybackEngine:
         required = self._required_seconds()
         if required is not None:
             # Keep queued delivery spacing consistent with the played audio.
-            submission_track.duration = required * 2
+            submission_track.duration = self.beatmap.duration or self.track.duration
         submission = Submission(
             id=uuid.uuid4().hex,
             attempt_id=(
