@@ -19,7 +19,7 @@ class Config:
     tosu_url: str = "ws://127.0.0.1:24050/websocket/v2"
     tosu_path: str = ""
     ipc_port: int = 42381
-    threshold_mode: str = "custom"
+    threshold_mode: str = "half"
     auto_export: bool = False
     auto_update: bool = True
     export_path: str = ""
@@ -37,8 +37,10 @@ class Config:
         _ = parsed.port
         if type(self.ipc_port) is not int or not 1024 <= self.ipc_port <= 65535:
             raise ValueError("ipc_port must be between 1024 and 65535")
-        if not isinstance(self.threshold_mode, str) or self.threshold_mode not in {"custom", "standard"}:
-            raise ValueError("threshold_mode must be custom or standard")
+        if not isinstance(self.threshold_mode, str) or self.threshold_mode not in {"half", "custom", "standard"}:
+            raise ValueError("threshold_mode must be half")
+        # Migrate existing profiles without requiring a manual settings change.
+        self.threshold_mode = "half"
         if not isinstance(self.auto_export, bool):
             raise ValueError("auto_export must be true or false")
         if not isinstance(self.auto_update, bool):

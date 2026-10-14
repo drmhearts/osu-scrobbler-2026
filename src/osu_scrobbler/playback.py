@@ -15,7 +15,7 @@ from .models import Beatmap, Phase, Submission, Telemetry, Track
 
 
 DUPLICATE_MESSAGE = (
-    "Already scrobbled. Retry the map and play at least 29 seconds to scrobble again."
+    "Already scrobbled. Start a fresh play and listen to half the song to scrobble again."
 )
 ACTIVE_PHASES = {Phase.PLAYING, Phase.LISTENING}
 
@@ -60,13 +60,10 @@ class PlaybackEngine:
     consumes the attempt; retries of delivery should reuse its submission ID.
     """
 
-    def __init__(self, mode: str = "custom", threshold: float = 29.0) -> None:
-        if mode not in {"custom", "standard", "lastfm"}:
-            raise ValueError("Threshold mode must be custom or standard")
-        if not math.isfinite(threshold) or threshold < 29:
-            raise ValueError("Custom gameplay threshold must be at least 29 seconds")
-        self.mode = "standard" if mode == "lastfm" else mode
-        self.threshold = float(threshold)
+    def __init__(self, mode: str = "half") -> None:
+        if mode not in {"half", "custom", "standard", "lastfm"}:
+            raise ValueError("Threshold mode must be half")
+        self.mode = "half"
         self.beatmap: Beatmap | None = None
         self.track: Track | None = None
         self.phase = Phase.DISCONNECTED
@@ -284,17 +281,13 @@ class PlaybackEngine:
         self._last_wall_time = wall_time
 
     def _required_seconds(self) -> float | None:
-        if self.mode == "custom":
-            return self.threshold
-        duration = self.track.duration if self.track else None
-        if duration is None and self.beatmap:
-            duration = self.beatmap.duration
-        if duration is None or not math.isfinite(duration) or duration <= 30:
+        # The actual osu! audio may be a cut of a longer database recording.
+        duration = self.beatmap.duration if self.beatmap else None
+        if duration is None and self.track:
+            duration = self.track.duration
+        if duration is None or not math.isfinite(duration) or duration <= 0:
             return None
-        # Last.fm: more than 30 seconds long, played halfway or four minutes,
-        # whichever comes first. This application's duplicate guard additionally
-        # requires a minimum of 29 seconds for every subsequent fresh attempt.
-        return max(29.0, min(duration / 2.0, 240.0))
+        return duration / 2.0
 
     def _history_allows(self, aliases: set[str], monotonic: float, wall_time: float) -> bool:
         for identity in aliases:
@@ -305,7 +298,8 @@ class PlaybackEngine:
                 if identity in self._success_monotonic
                 else wall_time - self._last_success[identity]
             )
-            if since < 29.0 or self.active_seconds < 29.0:
+            required = self._required_seconds()
+            if required is None or since < required or self.active_seconds < required:
                 return False
         return True
 
@@ -348,7 +342,7 @@ class PlaybackEngine:
             required = self._required_seconds()
             if (
                 not attempt
-                or self.phase == Phase.DISCONNECTED
+                or self.phase not in ACTIVE_PHASES | {Phase.PAUSED}
                 or required is None
                 or attempt.active_seconds < required
             ):
@@ -357,6 +351,11 @@ class PlaybackEngine:
             return None
 
         current_gameplay = attempt is not None and self.phase in ACTIVE_PHASES | {Phase.PAUSED}
+        submission_track = deepcopy(self.track)
+        required = self._required_seconds()
+        if required is not None:
+            # Keep queued delivery spacing consistent with the played audio.
+            submission_track.duration = required * 2
         submission = Submission(
             id=uuid.uuid4().hex,
             attempt_id=(
@@ -364,7 +363,7 @@ class PlaybackEngine:
                 if attempt and (not manual or current_gameplay)
                 else f"selection:{self.selection_episode}"
             ),
-            track=deepcopy(self.track),
+            track=submission_track,
             playback_start=int(
                 attempt.started_at
                 if attempt and (not manual or current_gameplay)

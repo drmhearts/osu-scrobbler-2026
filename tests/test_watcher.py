@@ -24,11 +24,11 @@ class DeferredMusicBrainz:
 
 
 def beatmap(name="A"):
-    return Beatmap(name, "Track " + name, "Artist", duration=120)
+    return Beatmap(name, "Track " + name, "Artist", duration=58)
 
 
 def track(name="A"):
-    return Track("Track " + name, "Artist", "Album", "Artist", 120, recording_id=name)
+    return Track("Track " + name, "Artist", "Album", "Artist", 58, recording_id=name)
 
 
 def controlled_time(monkeypatch):
@@ -105,7 +105,7 @@ async def test_manual_choice_wins_over_delayed_lookup_and_persists(tmp_path, mon
 
 
 @pytest.mark.parametrize("lookup", ["unavailable", "missing", "ambiguous", "pending"])
-async def test_lookup_never_blocks_29_second_scrobble(tmp_path, lookup):
+async def test_lookup_never_blocks_half_song_scrobble(tmp_path, lookup):
     mb = DeferredMusicBrainz()
     delivered = []
 
@@ -115,7 +115,7 @@ async def test_lookup_never_blocks_29_second_scrobble(tmp_path, lookup):
             return DeliveryResult("accepted", accepted=1)
 
     watcher = Watcher(tmp_path, Config(), musicbrainz=mb, lastfm=LastFm(), output=lambda _: None)
-    selected = Beatmap("map", "Roman title", "Roman artist", title_unicode="曲", artist_unicode="歌手")
+    selected = Beatmap("map", "Roman title", "Roman artist", title_unicode="曲", artist_unicode="歌手", duration=58)
     try:
         await watcher.ingest(Telemetry(selected, Phase.PLAYING, 0), 0, 1700000000)
         await asyncio.sleep(0)

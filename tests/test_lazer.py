@@ -28,7 +28,7 @@ def test_lazer_selection_identifies_before_gameplay_and_reports_audio_length(fra
     assert event.beatmap.selection_key.startswith("lazer:")
 
 
-def test_lazer_29_second_boundary_pause_disconnect_and_fresh_retry(frames):
+def test_lazer_half_song_threshold_pause_disconnect_and_fresh_retry(frames):
     adapter = TosuAdapter()
     engine = PlaybackEngine()
     def observe(name, at):
@@ -45,13 +45,13 @@ def test_lazer_29_second_boundary_pause_disconnect_and_fresh_retry(frames):
     assert observe("resumed", 60) is None
     engine.update(adapter.disconnected(), 60, 1700000060)
     assert observe("resumed", 90) is None
-    accepted = observe("resumed", 90.125)  # The next sample crosses 29s of active play.
+    accepted = observe("resumed", 117.125)  # The next sample crosses half the song in active play.
     assert accepted is not None and accepted.playback_start == 1700000001
-    engine.mark_success(accepted, 1700000090.125, monotonic=90.125)
-    assert observe("resumed", 91) is None
-    assert observe("retry", 92) is None
+    engine.mark_success(accepted, 1700000117.125, monotonic=117.125)
+    assert observe("resumed", 118) is None
+    assert observe("retry", 119) is None
     assert engine.active_seconds == 0
-    second = observe("resumed", 121)
+    second = observe("resumed", 175)
     assert second is not None and second.attempt_id != accepted.attempt_id
 
 

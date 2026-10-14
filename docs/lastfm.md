@@ -5,9 +5,11 @@ session key. HTTPS requests are signed with sorted decoded parameters and MD5.
 Credentials stay in Windows Credential Manager (or a supported native secure
 vault); plaintext fallback and password-based login are not used.
 
-The **29-second** mode and unplayed force are custom behavior. Standard mode
-requires a track longer than 30 seconds and half its duration or 240 seconds of
-active play, with this app's additional 29-second minimum. Automatic timestamps
+Automatic submission requires **half the song's length** in active gameplay or
+main-menu listening, without a fixed minimum or four-minute cap. Song selection
+only identifies music and supports manual force. Duration uses the actual audio
+length, then database duration; unknown duration needs identification or force.
+Unplayed force is custom listening behavior. Automatic timestamps
 use observed gameplay start; unplayed force uses the manual request time.
 
 SQLite reserves each submission/attempt before sending. Acceptance requires one

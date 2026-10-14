@@ -6,15 +6,15 @@ from osu_scrobbler.models import Beatmap, Phase, Telemetry, Track
 from osu_scrobbler.playback import DUPLICATE_MESSAGE, DuplicateSuppressed, PlaybackEngine
 
 
-MAP = Beatmap("map-a", "Song", "Artist", duration=180.0)
-TRACK = Track("Song", "Artist", "Album", "Artist", 180.0, recording_id="recording-a")
+MAP = Beatmap("map-a", "Song", "Artist", duration=58.0)
+TRACK = Track("Song", "Artist", "Album", "Artist", 58.0, recording_id="recording-a")
 
 
 def observe(engine, clock, phase=Phase.PLAYING, *, beatmap=MAP, position=None, token=None):
     engine.update(Telemetry(beatmap, phase, position, token), clock, 1000 + clock)
 
 
-def ready(mode="custom", **kwargs):
+def ready(mode="half", **kwargs):
     engine = PlaybackEngine(mode, **kwargs)
     observe(engine, 0, Phase.MENU)
     engine.bind_track(TRACK)
@@ -42,7 +42,7 @@ def test_selection_is_available_before_gameplay_and_force_timestamp_is_now():
     assert forced.attempt_id.startswith("selection:")
 
 
-def test_28_point_9_is_too_short_and_29_is_reserved_once():
+def test_half_song_boundary_for_58_second_audio_is_reserved_once():
     engine = ready()
     observe(engine, 0, position=0)
     observe(engine, 28.9, position=57.8)  # Speed mods must not double elapsed time.
@@ -74,7 +74,7 @@ def test_pause_and_disconnect_exclude_time_without_resetting_attempt():
     assert submit(engine, 229) is not None
 
 
-def test_unreliable_interval_cannot_cross_29_second_threshold():
+def test_unreliable_interval_cannot_cross_half_song_threshold():
     engine = ready()
     observe(engine, 0)
     observe(engine, 28.9)
@@ -133,7 +133,7 @@ def test_disconnected_qualified_attempt_waits_until_reconnected():
     engine.bind_track(TRACK)
     assert submit(engine, 100) is None
     observe(engine, 101, Phase.RESULTS)
-    assert submit(engine, 101) is not None
+    assert submit(engine, 101) is None  # Results are not an automatic scrobbling screen.
 
 
 def test_late_metadata_binding_keeps_active_time_and_selection_change_clears_metadata():
@@ -159,8 +159,11 @@ def test_qualifying_attempt_can_submit_when_terminal_frame_or_metadata_arrives_l
     assert engine.active_seconds == 29
     engine.bind_track(TRACK)
     submission = submit(engine, 100)
-    assert submission is not None
-    assert submission.playback_start == 1000
+    if ended_phase is Phase.PAUSED:
+        assert submission is not None
+        assert submission.playback_start == 1000
+    else:
+        assert submission is None  # Automatic submission is limited to gameplay/main menu.
     assert engine.active_seconds == 29
 
 
@@ -424,15 +427,15 @@ def test_terminal_ignored_delivery_consumes_attempt_without_success_history():
     assert submit(engine, 131) is not None
 
 
-def test_standard_threshold_duration_rules_and_29_second_minimum():
-    engine = ready("standard")
+def test_half_song_threshold_has_no_minimum_or_four_minute_cap():
+    engine = ready()
     observe(engine, 0)
-    assert submit(engine, 89.9) is None
-    assert submit(engine, 90) is not None
-    for duration, required in [(30, None), (31, 29), (60, 30), (600, 240)]:
+    assert submit(engine, 28.9) is None
+    assert submit(engine, 29) is not None
+    for duration, required in [(10, 5), (30, 15), (31, 15.5), (60, 30), (600, 300)]:
         current = ready("standard")
+        observe(current, 0, beatmap=Beatmap("map-duration", "Song", "Artist", duration=duration))
         current.bind_track(Track("Song", "Artist", "Album", "Artist", duration))
-        observe(current, 0)
         assert current.status()["required_seconds"] == required
         if required is None:
             assert submit(current, 1000) is None
@@ -441,7 +444,7 @@ def test_standard_threshold_duration_rules_and_29_second_minimum():
             assert submit(current, required) is not None
 
 
-def test_unknown_standard_duration_blocks_automatic_but_not_manual():
+def test_unknown_duration_blocks_automatic_but_not_manual():
     engine = PlaybackEngine("standard")
     observe(engine, 0, Phase.MENU, beatmap=Beatmap("unknown", "Song", "Artist"))
     engine.bind_track(Track("Song", "Artist", "Song", "Artist"))
@@ -455,3 +458,23 @@ def test_submission_metadata_is_snapshot_of_displayed_metadata():
     engine.track.album = "Edited later"
     assert forced.track.album == "Album"
     engine.track.album = "Album"
+
+
+@pytest.mark.parametrize('old_mode', ['custom', 'standard', 'lastfm'])
+def test_legacy_engine_modes_use_half_song_threshold(old_mode):
+    engine = ready(old_mode)
+    observe(engine, 0, beatmap=Beatmap('map', 'Song', 'Artist', duration=200))
+    engine.bind_track(Track('Song', 'Artist', 'Album', 'Artist', 200))
+    assert engine.status()['threshold_mode'] == 'half'
+    assert submit(engine, 99.9) is None
+    assert submit(engine, 100) is not None
+
+
+def test_played_audio_length_wins_over_longer_database_recording():
+    engine = PlaybackEngine()
+    observe(engine, 0, beatmap=Beatmap('audio-cut', 'Song', 'Artist', duration=120))
+    engine.bind_track(Track('Song', 'Artist', 'Album', 'Artist', 300))
+    assert engine.status()['required_seconds'] == 60
+    assert submit(engine, 59.9) is None
+    submission = submit(engine, 60)
+    assert submission is not None and submission.track.duration == 120

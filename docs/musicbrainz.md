@@ -8,7 +8,9 @@ may match full recordings, with the difference retained in detailed metadata.
 Scrobbling never waits for a lookup. Until a confident match or saved correction
 is available, beatmap title/artist are used, album is the track title, and album
 artist is the artist. Missing, ambiguous, unavailable and slow lookups still
-qualify after 29 seconds of active listening in the default mode. A late match
+qualify after half the song's length in active listening. Audio duration comes
+from tosu first, then the database. Unknown duration prevents automatic submission;
+force remains available. A late match
 does not resubmit an already queued or accepted play.
 
 `status` lists candidates; `config choose N` or `config correct` saves a correction

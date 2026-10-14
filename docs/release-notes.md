@@ -1,14 +1,18 @@
-## Try osu! scrobbler 0.2.5
+## Try osu! scrobbler 0.2.6
 
-Startup now verifies that the background monitor and tray icon are ready before
-showing the welcome terminal. A failed updated tray falls back to the original
-installation. Monitor startup errors are surfaced, and the terminal distinguishes
-a stopped background app from waiting for osu!. Process detection also recognizes
-`osu.exe`. No extra setup commands or new data collection are added.
+Automatic scrobbling now applies **only to the main menu and personal gameplay**.
+Song selection and multiplayer lobbies still identify songs and allow manual
+**force**, but never submit automatically.
 
-Includes automatic 29-second gameplay/menu scrobbling and beatmap metadata fallback
-when MusicBrainz is missing, ambiguous, slow or unavailable. Missing album uses
-track title; album artist defaults to artist. Saved corrections still take priority.
+The threshold is now **half the song's length**, with no 29-second minimum or
+four-minute cap. The actual osu! audio length takes priority over database length.
+Unknown duration waits for identification; force remains available. Pauses, seeks
+and disconnect gaps do not count. Existing saved threshold settings migrate
+automatically, and duplicate protection remains in place.
+
+Includes verified tray startup and beatmap metadata fallback when MusicBrainz
+cannot identify a song. Album defaults to track title; album artist defaults to
+artist. Saved authorization, settings and history are preserved.
 
 Download **osu-scrobbler-windows-source.zip** below and extract it into a permanent folder.
 
@@ -22,7 +26,7 @@ are remembered in Windows Credential Manager. Click the pink tray icon to reopen
 the terminal; closing the view keeps background scrobbling running. Use the icon's
 **Exit** menu to stop it.
 
-The default threshold is 29 seconds of active listening (custom Last.fm behavior).
+The automatic threshold is half the song in active gameplay or main-menu listening.
 Automatic updates use verified published releases and preserve settings/history.
 No analytics, tracking IDs or gameplay uploads are included. Source is MIT licensed.
 

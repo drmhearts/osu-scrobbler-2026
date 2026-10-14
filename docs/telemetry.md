@@ -23,7 +23,9 @@ playing. Unknown identity stays paused; no osu! password/API key is requested.
 Feeds are sampled independently, so unusual spectator/client variants still need
 live checks. Client-prefixed selection keys prevent stable/lazer timers mixing.
 
-Main-menu/song-selection audio also counts on stable and lazer. Matching fresh
+Only main-menu audio and personal gameplay count on stable and lazer. Song selection
+and multiplayer lobbies still identify music and support force, but never count
+automatic listening time or trigger automatic submissions. Matching fresh
 companion status 1 and a normally advancing audio position establish listening.
 Frozen clocks and seeks add no time; a rewind starts a fresh loop. Menu listening
 can attach mid-song, counting only newly observed playback, never earlier time.
@@ -46,7 +48,7 @@ and [companion fields](https://github.com/tosuapp/tosu/blob/a4da331515091db0eeb4
 Fixtures are source-shaped **synthetic** snapshots, with local socket tests for
 loss/reconnect. The user subsequently reported stable gameplay and real delivery
 working on Windows. That confirms one stable installation. Lazer uses additional synthetic fixtures
-for selection, 29-second timing, pause, disconnect, retry, replay, and identity
+for selection, half-song timing, pause, disconnect, retry, replay, and identity
 guards; live lazer and all spectator variants are not claimed validated. Before real use on another setup, check
 selection, pause/resume, retry, failure/results, replay, and exit in dry-run mode.
 

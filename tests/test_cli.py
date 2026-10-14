@@ -21,7 +21,7 @@ def test_runnable_fixture_dry_run_emits_two_qualifying_attempts_without_history(
     assert result.stdout.count('DRY RUN — would scrobble:') == 2
     assert 'Demo complete: 2 dry-run scrobbles; none sent.' in result.stdout
     assert "防人想歌" in result.stdout
-    assert "Custom 29s" in result.stdout
+    assert "Half-song threshold" in result.stdout
     assert '"phase"' not in result.stdout
     assert "recording_id" not in result.stdout
     assert len(result.stdout.splitlines()) <= 10
@@ -39,7 +39,7 @@ def test_json_output_is_opt_in_and_retains_submission_metadata(tmp_path):
     assert len(previews) == 2
     assert previews[0]["metadata"]["title"] == "防人想歌"
     assert previews[0]["metadata"]["album_fallback"] is True
-    assert previews[0]["playback_start"] == 1700000001
+    assert previews[0]["playback_start"] == 1700000002
     assert any(event.get("phase") == "paused" for event in events)
 
 
@@ -83,3 +83,12 @@ def test_single_watcher_lock_is_released_by_owner(tmp_path):
                 pytest.fail("Second watcher acquired the owner's lock")
     with WatchLock(tmp_path):
         pass
+
+
+@pytest.mark.parametrize('old_mode', ['custom', 'standard'])
+def test_saved_threshold_settings_migrate_to_half_without_commands(tmp_path, old_mode):
+    (tmp_path / 'config.json').write_text(json.dumps({'threshold_mode': old_mode}), encoding='utf-8')
+    config = Config.load(tmp_path)
+    assert config.threshold_mode == 'half'
+    config.save(tmp_path)
+    assert json.loads((tmp_path / 'config.json').read_text('utf-8'))['threshold_mode'] == 'half'

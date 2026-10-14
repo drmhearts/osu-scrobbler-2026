@@ -229,7 +229,7 @@ class TosuAdapter:
         interval_reliable = True
         now = time.monotonic() if monotonic is None else monotonic
         elapsed = max(0.0, now - self._sample_monotonic) if self._sample_monotonic is not None else 0.0
-        menu_context = number in {0, 5, 11, 12, 13}
+        menu_context = number == 0  # Only the main menu counts as automatic listening.
         context_changed = menu_context != self._menu_context
         supported_client = _text(payload.get("client")).casefold() in {"stable", "lazer"}
         if number in {7, 14, 17, 18}:

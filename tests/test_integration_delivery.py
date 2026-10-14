@@ -42,8 +42,8 @@ def setup(tmp_path, monkeypatch):
     import osu_scrobbler.watcher as watcher_module
     clock = Clock()
     monkeypatch.setattr(watcher_module, "time", clock)
-    map = Beatmap("map", "曲", "歌手", duration=180)
-    track = Track("曲", "歌手", "アルバム", "歌手", 180, recording_id="recording")
+    map = Beatmap("map", "曲", "歌手", duration=58)
+    track = Track("曲", "歌手", "アルバム", "歌手", 58, recording_id="recording")
     stores = []
     def make(client, config=None, dry_run=False):
         store = Storage(tmp_path / "history.sqlite3")

@@ -121,7 +121,7 @@ def render(value, *, full=False, json_output=False):
         if value.get("dry_run"):
             lines.append("Dry run: no Last.fm writes.")
         if value.get("suppressed"):
-            lines.append("Already scrobbled. Retry the map and play at least 29 seconds to scrobble again.")
+            lines.append("Already scrobbled. Start a fresh play and listen to half the song to scrobble again.")
         if value.get("candidates"):
             lines.extend(candidates(value["candidates"]))
         elif not value.get("track"):

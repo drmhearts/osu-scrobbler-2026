@@ -121,7 +121,7 @@
       "time": 0,
       "totalAudioTime": 112000
     },
-    "at": 1
+    "at": 2
   },
   {
     "payload": {
@@ -183,7 +183,7 @@
       "time": 28.9,
       "totalAudioTime": 112000
     },
-    "at": 29.9
+    "at": 59.8
   },
   {
     "payload": {
@@ -245,7 +245,7 @@
       "time": 28.9,
       "totalAudioTime": 112000
     },
-    "at": 29.9
+    "at": 59.8
   },
   {
     "payload": {
@@ -307,7 +307,7 @@
       "time": 28.9,
       "totalAudioTime": 112000
     },
-    "at": 99.9
+    "at": 199.8
   },
   {
     "payload": {
@@ -369,7 +369,7 @@
       "time": 29,
       "totalAudioTime": 112000
     },
-    "at": 100
+    "at": 200
   },
   {
     "payload": {
@@ -431,7 +431,7 @@
       "time": 29.1,
       "totalAudioTime": 112000
     },
-    "at": 100.1
+    "at": 200.2
   },
   {
     "payload": {
@@ -493,7 +493,7 @@
       "time": 29.2,
       "totalAudioTime": 112000
     },
-    "at": 100.2
+    "at": 200.4
   },
   {
     "payload": {
@@ -555,7 +555,7 @@
       "time": 0,
       "totalAudioTime": 112000
     },
-    "at": 101
+    "at": 202
   },
   {
     "payload": {
@@ -617,7 +617,7 @@
       "time": 28.9,
       "totalAudioTime": 112000
     },
-    "at": 129.9
+    "at": 259.8
   },
   {
     "payload": {
@@ -679,7 +679,7 @@
       "time": 29,
       "totalAudioTime": 112000
     },
-    "at": 130
+    "at": 260
   },
   {
     "payload": {
@@ -741,6 +741,6 @@
       "time": 29.1,
       "totalAudioTime": 112000
     },
-    "at": 130.1
+    "at": 260.2
   }
 ]

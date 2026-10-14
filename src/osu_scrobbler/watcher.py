@@ -193,7 +193,9 @@ class Watcher:
                 since = (mono - self.delivery_success_clock[submission.track.identity]
                          if submission.track.identity in self.delivery_success_clock
                          else now - prior if prior is not None else float("inf"))
-                if since < 29 or mono < self.retry_after.get(submission.id, 0):
+                duration = submission.track.duration
+                spacing = duration / 2 if duration and math.isfinite(duration) and duration > 0 else 0
+                if since < spacing or mono < self.retry_after.get(submission.id, 0):
                     continue
                 self.storage.mark(submission.id, "sending")
                 try:
@@ -409,7 +411,7 @@ class Watcher:
             await server.start()
             if self.enable_keyboard and not self.fixture and not self.json_output:
                 self.output(welcome(self.directory))
-            mode = "Custom 29s" if self.config.threshold_mode == "custom" else "Last.fm standard"
+            mode = "Half-song threshold"
             self.say(f"osu! scrobbler | {'DRY RUN — no writes' if self.dry_run else 'Live'} | {mode}")
             if self.enable_keyboard and (self.fixture or self.json_output):
                 self.say("f force | i info | v full info | e export | a auto-export | q quit")

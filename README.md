@@ -80,7 +80,6 @@ Run them from a second terminal in the project folder while watching.
 | `export [file.txt]` | Export accepted history; also works with watcher stopped |
 | `config set auto_export true` | Enable automatic export |
 | `config set export_path "C:\Users\you\Documents\scrobbles.txt"` | Set export destination |
-| `config set threshold_mode standard` | Switch to Last.fm listening criteria |
 | `config choose 1` | Save a numbered match candidate |
 | `config correct --title "Song" --artist "Artist" --album "Album"` | Save a correction |
 | `config clear-correction` | Remove the current correction |
@@ -95,13 +94,15 @@ default: `%LOCALAPPDATA%\osu-scrobbler`. Exports are UTF-8, tab-separated text.
 
 ## Behavior
 
-- Default: scrobble after **29 seconds of active listening**, in gameplay, the
-  main menu or song selection. Menu audio must have an advancing playback clock;
+- Automatically scrobble after **half the song's length** in gameplay or the
+  main menu. Song selection still identifies music and allows **force**, but never
+  scrobbles automatically. Main-menu audio must have an advancing playback clock;
   paused audio, seeks and disconnects do not count. Every retry/loop has its own timer.
-- The default and unplayed force are **custom behavior**. Standard mode requires
-  duration over 30 seconds and half the track or 4 minutes, plus a 29-second minimum.
+- Duration uses the actual osu! audio length, then database duration if unavailable.
+  Unknown duration waits for identification or force. There is no fixed minimum
+  or four-minute cap; existing threshold settings migrate automatically.
 - Successful force suppresses the next attempt of that track. A later attempt
-  needs 29 seconds of fresh play **and** 29 seconds since the previous success.
+  needs half a song of fresh listening **and** that interval since the previous success.
 - Lookup never blocks scrobbling: missing, ambiguous, slow or unavailable matches
   use the beatmap title/artist. Unknown albums use **track title**; album artist
   defaults to artist. Candidates and saved corrections remain optional.
