@@ -1,16 +1,16 @@
 # osu! scrobbler
 
-osu! music on Last.fm. Windows · stable + lazer · MIT · no analytics.
+Title. Also a metadata extractor!
 
 [Download for Windows](https://github.com/drmhearts/osu-scrobbler-2026/releases/latest/download/osu-scrobbler-windows.zip)
 
 1. Extract the download and double-click **START.cmd**.
-2. Connect Last.fm once and choose whether to start with Windows.
-3. Open osu!. Click the pink tray icon when you want commands.
+2. Connect Last.fm once and choose whether to start with Windows (recommended).
+3. Open osu! (stable or lazer). If you want to use commands or configure anything, click the pink icon in your tray.
 
-Python is included. tosu installs automatically and runs hidden, without its
+Python is included. tosu (what is used to see the song/map playing) installs automatically and runs hidden, without its
 browser or overlay. Any osu! install location works. The app installs in your
-local user folder; no administrator access is needed.
+local user folder.
 
 | Key | Action |
 | --- | --- |
@@ -24,14 +24,11 @@ local user folder; no administrator access is needed.
 
 Later starts stay in the tray. **x** or tray → Exit stops the app.
 
-Automatic scrobbles count main-menu listening and personal gameplay. Song selection
-identifies music and allows force. Pauses, seeks and disconnects do not count.
-Default timer: half the audio length. Settings and Last.fm authorization are remembered.
-Unknown matches use map title/artist; missing album uses title again.
+Main menu and gameplay trigger automatic scrobbling after at least half the song has been played. In song selection,
+you can still identify tracks and force scrobble / grab metadata. Pauses, seeks and disconnects do not count.
+I try to use musicbrainz to find a matching album, but if it's not found, the track will be treated as a single.
 
-START checks verified releases and keeps the whole app current. No fresh install
-is needed. Saved history and settings stay local; credentials use Windows Credential
-Manager. No audio capture, analytics or gameplay uploads.
+No audio capture, analytics or gameplay uploads.
 
 [Source](https://github.com/drmhearts/osu-scrobbler-2026) ·
 [Details](https://github.com/drmhearts/osu-scrobbler-2026/tree/main/docs)
