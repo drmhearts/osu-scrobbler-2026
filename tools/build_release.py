@@ -35,7 +35,7 @@ def main():
     for directory in ("src/osu_scrobbler",):
         files.extend(path for path in (root / directory).rglob("*")
                      if path.is_file() and not path.is_symlink() and "__pycache__" not in path.parts
-                     and path.suffix in {".py", ".json", ".cmd", ".md"})
+                     and (path.suffix in {".py", ".json", ".cmd", ".md", ".ps1"} or path.name.endswith("LICENSE")))
     source = output / "osu-scrobbler-windows-source.zip"
     with ZipFile(source, "w", ZIP_DEFLATED) as archive:
         for path in sorted(files):

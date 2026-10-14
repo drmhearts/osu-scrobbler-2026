@@ -58,10 +58,13 @@ def release_from_response(data):
         raise UpdateError("Invalid release tag; keeping the installed app.")
     number = tag[1:]
     version(number)
-    filename = f"osu_scrobbler-{number}-py3-none-any.whl"
     listed_assets = data.get("assets")
     if not isinstance(listed_assets, list):
         raise UpdateError("Invalid release asset list.")
+    portable = "osu-scrobbler-windows.zip"
+    filename = (portable if sys.platform == "win32" and any(
+        isinstance(asset, dict) and asset.get("name") == portable for asset in listed_assets)
+        else f"osu_scrobbler-{number}-py3-none-any.whl")
     assets = [asset for asset in listed_assets if isinstance(asset, dict) and asset.get("name") == filename]
     if len(assets) != 1:
         raise UpdateError("Release has no matching update package; keeping the installed app.")
@@ -71,9 +74,22 @@ def release_from_response(data):
     size = asset.get("size")
     if (asset.get("browser_download_url") != expected or not isinstance(digest, str)
             or not re.fullmatch(r"sha256:[a-f0-9]{64}", digest)
-            or type(size) is not int or not 0 < size <= MAX_WHEEL):
+            or type(size) is not int or not 0 < size <= package_limit(filename)):
         raise UpdateError("Release package verification data is invalid; keeping the installed app.")
     return Release(number, filename, expected, digest.removeprefix("sha256:"), size)
+
+
+def package_limit(filename):
+    from .portable import MAX_BUNDLE
+    return MAX_BUNDLE if filename == "osu-scrobbler-windows.zip" else MAX_WHEEL
+
+
+def verify_package(content, release):
+    if release.filename == "osu-scrobbler-windows.zip":
+        from .portable import verify_archive
+        verify_archive(content, release)
+    else:
+        verify_wheel(content, release)
 
 
 def verify_wheel(content, release):
@@ -104,6 +120,8 @@ def verify_wheel(content, release):
 
 
 def environment_python(environment, *, hidden=False):
+    if environment.name == "runtime":
+        return environment / ("pythonw.exe" if hidden else "python.exe")
     if sys.platform == "win32":
         return environment / "Scripts" / ("pythonw.exe" if hidden else "python.exe")
     return environment / "bin/python"
@@ -146,7 +164,7 @@ class Updater:
             data = json.loads((self.root / filename).read_text("utf-8"))
             version(data["version"])
             relative = data["environment"]
-            if not isinstance(relative, str) or not re.fullmatch(r"versions/[0-9.]+-[a-z0-9_\-]+/venv", relative):
+            if not isinstance(relative, str) or not re.fullmatch(r"versions/[0-9.]+-[a-z0-9_\-]+/(?:venv|runtime)", relative):
                 return None
             environment = self.root / relative
             if (environment.resolve() != self.root.resolve() / relative or not environment_python(environment).is_file()
@@ -206,8 +224,10 @@ class Updater:
             return None
         base = f"https://github.com/{REPOSITORY}/releases/download/v{number}/"
         checksums = await self._download_bytes(base + "SHA256SUMS.txt", 8192)
-        filename = f"osu_scrobbler-{number}-py3-none-any.whl"
         rows = [line.split() for line in checksums.decode("utf-8").splitlines()]
+        portable = "osu-scrobbler-windows.zip"
+        filename = (portable if sys.platform == "win32" and any(len(row) == 2 and row[1] == portable for row in rows)
+                    else f"osu_scrobbler-{number}-py3-none-any.whl")
         hashes = [row[0] for row in rows if len(row) == 2 and row[1] == filename]
         if len(hashes) != 1 or not re.fullmatch(r"[a-f0-9]{64}", hashes[0]):
             raise UpdateError("Release checksums are invalid.")
@@ -253,37 +273,41 @@ class Updater:
                 content = bytearray()
                 async for chunk in response.aiter_bytes():
                     content.extend(chunk)
-                    if (release.size and len(content) > release.size) or len(content) > MAX_WHEEL:
+                    if (release.size and len(content) > release.size) or len(content) > package_limit(release.filename):
                         raise UpdateError("Update download exceeded its expected size.")
-                verify_wheel(content, release)
+                verify_package(content, release)
                 return bytes(content)
         raise UpdateError("Too many update download redirects.")
 
     async def install(self, release, content):
-        verify_wheel(content, release)
+        verify_package(content, release)
         versions = self.root / "versions"
         versions.mkdir(parents=True, exist_ok=True)
         staged = Path(tempfile.mkdtemp(prefix=release.version + "-", dir=versions))
-        environment = staged / "venv"
+        portable = release.filename == "osu-scrobbler-windows.zip"
+        environment = staged / ("runtime" if portable else "venv")
         activated = False
         try:
-            package = staged / release.filename
-            package.write_bytes(content)
             self.output(f"Installing osu! scrobbler {release.version}…")
-            await self.runner([sys.executable, "-m", "venv", str(environment)])
-            executable = environment_python(environment)
-            await self.runner([executable, "-m", "pip", "--disable-pip-version-check", "install", "--no-input",
-                               "--no-cache-dir", "--only-binary=:all:", str(package)])
-            await self.smoke(environment, release.version)
-            package.unlink()
-            data = {"version": release.version, "environment": environment.relative_to(self.root).as_posix(), "digest": release.digest}
-            _write_json(staged / "ready.json", data)
-            previous = self.current()
-            if previous:
-                _write_json(self.root / "previous.json", previous)
+            if portable:
+                from .portable import PREFIX
+                environment.mkdir()
+                with ZipFile(io.BytesIO(content)) as archive:
+                    for entry in archive.infolist():
+                        if entry.filename.startswith(PREFIX) and not entry.is_dir():
+                            target = environment / entry.filename[len(PREFIX):]
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            target.write_bytes(archive.read(entry))
             else:
-                _write_json(self.root / "previous.json", {"bootstrap": True})
-            _write_json(self.root / "current.json", data)
+                package = staged / release.filename
+                package.write_bytes(content)
+                await self.runner([sys.executable, "-m", "venv", str(environment)])
+                executable = environment_python(environment)
+                await self.runner([executable, "-m", "pip", "--disable-pip-version-check", "install", "--no-input",
+                                   "--no-cache-dir", "--only-binary=:all:", str(package)])
+                package.unlink()
+            await self.smoke(environment, release.version)
+            data = self.activate(environment, release.version, release.digest)
             activated = True
             self.prune()
             self.output(f"Updated to {release.version}. Settings and Last.fm authorization kept.")
@@ -292,6 +316,39 @@ class Updater:
             if not activated:
                 shutil.rmtree(staged, ignore_errors=True)
             raise
+
+    def activate(self, environment, number, digest):
+        data = {"version": number, "environment": environment.relative_to(self.root).as_posix(), "digest": digest}
+        _write_json(environment.parent / "ready.json", data)
+        previous = self.current()
+        _write_json(self.root / "previous.json", previous or {"bootstrap": True})
+        _write_json(self.root / "current.json", data)
+        return data
+
+    async def install_directory(self, runtime, manifest, digest):
+        versions = self.root / "versions"
+        versions.mkdir(parents=True, exist_ok=True)
+        staged = Path(tempfile.mkdtemp(prefix=manifest["version"] + "-", dir=versions))
+        environment = staged / "runtime"
+        activated = False
+        try:
+            environment.mkdir()
+            for name in [*manifest["files"], "portable.json"]:
+                target = environment / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(runtime / name, target)
+            # Re-check the copy, including cross-volume installs and paths with spaces.
+            from .portable import verify_directory, install_launcher
+            verify_directory(environment, manifest["version"])
+            await self.smoke(environment, manifest["version"])
+            data = self.activate(environment, manifest["version"], digest)
+            activated = True
+            install_launcher(self.root.parent)
+            self.prune()
+            return data
+        finally:
+            if not activated:
+                shutil.rmtree(staged, ignore_errors=True)
 
     async def smoke(self, environment, number):
         script = ("from osu_scrobbler import __version__; "
@@ -318,7 +375,8 @@ class Updater:
             try:
                 marker = json.loads((candidate / "ready.json").read_text("utf-8"))
                 version(marker["version"])
-                owned = marker.get("environment") == candidate.relative_to(self.root).as_posix() + "/venv"
+                owned = marker.get("environment") in {candidate.relative_to(self.root).as_posix() + "/venv",
+                                                       candidate.relative_to(self.root).as_posix() + "/runtime"}
                 if owned:
                     shutil.rmtree(candidate, ignore_errors=True)
             except (OSError, ValueError, TypeError, KeyError, UpdateError):

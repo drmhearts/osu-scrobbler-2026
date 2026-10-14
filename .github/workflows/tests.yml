@@ -10,6 +10,27 @@ permissions:
   contents: read
 
 jobs:
+  windows-package:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Build and smoke-test standalone Windows download
+        shell: pwsh
+        run: |
+          python tools/build_release.py
+          if ($LASTEXITCODE -ne 0) { throw 'Release assets could not build' }
+          python tools/build_windows.py
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled Windows runtime failed validation' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: dist/*
+          retention-days: 7
+
   pytest:
     strategy:
       fail-fast: false

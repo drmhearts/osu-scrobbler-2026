@@ -19,7 +19,8 @@ def default_data_dir() -> Path:
             marker = json.loads((prefix.parent / "ready.json").read_text("utf-8"))
             if (prefix.parent.name.startswith(__version__ + "-") and marker.get("version") == __version__
                     and isinstance(marker.get("digest"), str) and re.fullmatch(r"[a-f0-9]{64}", marker["digest"])
-                    and marker.get("environment") == f"versions/{prefix.parent.name}/venv"):
+                    and prefix.name in {"venv", "runtime"}
+                    and marker.get("environment") == f"versions/{prefix.parent.name}/{prefix.name}"):
                 return prefix.parent.parent.parent.parent
         except (OSError, ValueError, AttributeError):
             pass

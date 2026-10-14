@@ -20,17 +20,20 @@ and authentication. Both services can see your IP address and apply their own
 privacy policies. Selected songs are searched before gameplay; live `--dry-run`
 still uses MusicBrainz, while fixture demos make no external requests.
 
-Automatic startup updates contact GitHub for public release metadata/downloads
-and the configured package index for dependencies. Those services see your IP
-address and requested releases/packages. Checks use a generic app/version header;
+Automatic startup updates contact GitHub for public release metadata/downloads.
+Bundled Windows updates include dependencies; legacy/source installs may also
+contact the configured package index. Those services see your IP address and
+requested releases/packages. Checks use a generic app/version header;
 no installation ID or gameplay data. Disable checks with `config set auto_update false`.
 Dry-run/fixture starts skip update checks. [Update behavior](updates.md).
 
-tosu is a separate open-source program that reads osu! memory. It may read more
-than this app requests and has its own logs and GitHub update checks. The launcher
-uses `--update=false` for its owned tosu child, disabling automatic binary
-replacement while leaving the update check. Existing tosu instances keep their
-settings. Installing dependencies also contacts the configured package index.
+tosu is a separate LGPL-3.0 program that reads osu! memory. It may read more than
+this app requests and has its own local logs and GitHub update checks. The app
+downloads an unmodified, checksum-pinned binary from tosu's official GitHub
+release when needed. Its managed configuration disables the browser, overlays,
+key overlay, PP calculation and mania scroll-speed reads; it serves only on
+loopback. `--update=false` disables automatic binary replacement while leaving
+the update check. Existing tosu instances keep their settings and behavior.
 
 **Your controls:** Background startup requires choosing **y** in first-run setup,
 pressing **b** in START. **b** toggles startup; **x** stops the monitor;

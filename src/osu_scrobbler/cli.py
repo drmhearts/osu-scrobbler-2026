@@ -60,6 +60,7 @@ def parser():
     startup.add_argument("--uninstall", action="store_true", help="Remove this profile's sign-in startup and stop its tray monitor")
     tray.add_argument("--dry-run", action="store_true", help="Preview only; never send Last.fm scrobbles")
     commands.add_parser("console", help="Open a terminal view of the running background watcher")
+    commands.add_parser("launch", help="First-time setup, then quiet tray launches")
     setup = commands.add_parser("setup", help="Connect Last.fm, choose background startup, and open the welcome terminal")
     setup.add_argument("--enable-startup", action="store_true", help="Enable Windows sign-in startup without asking again")
     setup.add_argument("--disable-startup", action="store_true", help="Disable Windows sign-in startup")
@@ -110,6 +111,10 @@ async def execute(args):
     directory = args.data_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
     command = args.command
+    if command == "launch":
+        from .setup import launch
+        await launch(directory)
+        return None
     if command == "setup":
         from .setup import first_run
         from .updater import startup, stop_running
@@ -229,9 +234,8 @@ def main(argv=None):
         # These are local validation / safe domain errors; third-party network failures are caught in adapters.
         if sys.stderr is not None:
             print(str(error), file=sys.stderr)
-        elif sys.platform == "win32":
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(None, str(error), "osu! scrobbler", 0x10)
+        # Background launches never open error dialogs. An intentional setup
+        # window reports errors normally; START remains available to retry.
         return 1
 
 

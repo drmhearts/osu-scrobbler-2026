@@ -14,6 +14,8 @@ def no_live_update_check(monkeypatch):
     async def unchanged(*args, **kwargs):
         return False
     monkeypatch.setattr("osu_scrobbler.setup.startup", unchanged)
+    monkeypatch.setattr("osu_scrobbler.setup.ensure_tosu", unchanged)
+    monkeypatch.setattr("osu_scrobbler.setup.asyncio.sleep", unchanged)
 
 
 @pytest.mark.parametrize("choice", ["y", ""])
@@ -53,11 +55,12 @@ async def test_first_click_authorizes_once_respects_startup_choice_and_then_clea
     monkeypatch.setattr(setup.subprocess, "run", clear)
     monkeypatch.setattr(setup, "show_console", show)
     await first_run(tmp_path)
-    assert events == ["authorize", "ask"] + (["register"] if choice else []) + ["launch", "ready", "clear", "welcome"]
+    assert events == ["authorize", "ask"] + (["register"] if choice else []) + ["launch", "ready", "clear"] + ([] if choice else ["welcome"])
     events.clear()
     await first_run(tmp_path)
     assert "authorize" not in events and "ask" not in events
-    assert events[-4:] == ["launch", "ready", "clear", "welcome"]
+    expected = ["launch", "ready", "clear"] + ([] if choice else ["welcome"])
+    assert events[-len(expected):] == expected
     assert registered[0] is bool(choice)
     output = capsys.readouterr().out
     for secret in (credentials.api_key, credentials.api_secret, credentials.session_key):
@@ -165,4 +168,67 @@ async def test_installed_update_replaces_older_running_backend_before_showing_te
     monkeypatch.setattr(setup, 'show_console', shown)
     monkeypatch.setattr(setup.subprocess, 'run', lambda *args, **kwargs: None)
     await first_run(tmp_path, check_updates=False)
-    assert events == ['stop old', 'launch new', 'new ready', 'new view']
+    assert events == ['stop old', 'launch new', 'new ready']
+
+
+async def test_returning_start_stays_in_tray_without_prompts_browser_or_terminal(tmp_path, monkeypatch):
+    import osu_scrobbler.setup as setup
+    import osu_scrobbler.cli as cli
+    (tmp_path / "setup-state.json").write_text('{"complete":true}')
+    monkeypatch.setattr(setup, "require_windows", lambda: None)
+    monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: Credentials("key", "secret", "session")))
+    async def health(_):
+        return {"ready": True, "version": setup.__version__}
+    def forbidden(*args, **kwargs):
+        pytest.fail("Returning START must not prompt, authorize, or spawn another terminal/tray")
+    monkeypatch.setattr(setup, "tray_health", health)
+    monkeypatch.setattr(setup, "launch_tray", forbidden)
+    monkeypatch.setattr(setup.asyncio, "create_subprocess_exec", forbidden)
+    monkeypatch.setattr(cli, "authorize", forbidden)
+    monkeypatch.setattr("builtins.input", forbidden)
+    await setup.launch(tmp_path)
+
+
+async def test_first_launch_opens_setup_and_returning_launch_starts_hidden_tray(tmp_path, monkeypatch):
+    import osu_scrobbler.setup as setup
+    calls = []
+    stored = [None]
+    monkeypatch.setattr(setup, "require_windows", lambda: None)
+    monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: stored[0]))
+    monkeypatch.setattr("osu_scrobbler.tray.python_executable", lambda: "python.exe")
+    monkeypatch.setattr(setup.subprocess, "CREATE_NEW_CONSOLE", 16, raising=False)
+    async def spawn(*args, **kwargs):
+        calls.append((args, kwargs))
+        async def done():
+            (tmp_path / "setup-state.json").write_text('{"complete":true}')
+            stored[0] = Credentials("key", "secret", "session")
+            return 0
+        return SimpleNamespace(wait=done)
+    monkeypatch.setattr(setup.asyncio, "create_subprocess_exec", spawn)
+    await setup.launch(tmp_path)
+    assert calls[0][0][-1] == "setup" and calls[0][1]["creationflags"] == 16
+    async def absent(*args):
+        return None
+    async def ready(*args):
+        calls.append("ready")
+    monkeypatch.setattr(setup, "tray_health", absent)
+    monkeypatch.setattr(setup, "launch_tray", lambda *args, **kwargs: calls.append("hidden tray"))
+    monkeypatch.setattr(setup, "wait_for_tray", ready)
+    await setup.launch(tmp_path)
+    assert calls[1:] == ["hidden tray", "ready"]
+
+
+def test_hidden_launch_errors_do_not_open_message_boxes(tmp_path, monkeypatch):
+    import ctypes
+    import osu_scrobbler.cli as cli
+    async def failed(*args, **kwargs):
+        raise RuntimeError("Local startup failed")
+    def popup(*args):
+        pytest.fail("Background errors must not create popups")
+    monkeypatch.setattr(cli, "execute", failed)
+    monkeypatch.setattr(ctypes, "windll", SimpleNamespace(user32=SimpleNamespace(MessageBoxW=popup)), raising=False)
+    with monkeypatch.context() as context:
+        context.setattr(cli.sys, "stdout", None)
+        context.setattr(cli.sys, "stderr", None)
+        result = cli.main(["--data-dir", str(tmp_path), "launch"])
+    assert result == 1

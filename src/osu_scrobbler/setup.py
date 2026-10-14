@@ -10,6 +10,8 @@ from .lastfm import CredentialStore
 from .tray import install_startup, launch_tray, require_windows, startup_installed, wait_for_tray, tray_health
 from .updater import startup, stop_running
 from . import __version__
+from .tosu import ensure_tosu
+from .welcome import welcome
 
 
 def setup_complete(directory):
@@ -23,6 +25,8 @@ def setup_complete(directory):
 async def first_run(directory: Path, *, enable_startup=False, check_updates=True):
     require_windows()
     directory.mkdir(parents=True, exist_ok=True)
+    print("Preparing osu! support…")
+    await ensure_tosu(directory)
     credentials = CredentialStore().load()
     if not credentials or not credentials.session_key:
         from .cli import authorize
@@ -53,4 +57,35 @@ async def first_run(directory: Path, *, enable_startup=False, check_updates=True
     await wait_for_tray(directory, process)
     # Clear installer output only on success; preserve error messages on failure.
     subprocess.run(["cmd.exe", "/d", "/c", "cls"], check=False)
+    if enable_startup or registered:
+        print(welcome(directory, background=True))
+        print("Ready. Click the pink tray icon for commands.")
+        await asyncio.sleep(2)
+        return  # The one-time setup window closes; background scrobbling stays on.
     await show_console(directory)
+
+
+async def launch(directory: Path):
+    """START opens setup only when needed; all later launches stay in the tray."""
+    require_windows()
+    credentials = CredentialStore().load()
+    if not setup_complete(directory) or not credentials or not credentials.session_key:
+        from .tray import python_executable
+        process = await asyncio.create_subprocess_exec(python_executable(), "-m", "osu_scrobbler",
+            "--data-dir", str(directory.resolve()), "setup", creationflags=subprocess.CREATE_NEW_CONSOLE)
+        if await process.wait():
+            raise RuntimeError("Setup did not finish. Reopen START.cmd to retry.")
+        return
+    # Updates and tosu setup stay hidden. Network failures keep the installed app.
+    if await startup(directory, command="tray"):
+        return
+    try:
+        health = await tray_health(directory)
+    except (RuntimeError, OSError, ValueError, asyncio.TimeoutError):
+        health = None
+    if health and health.get("version") == __version__ and health.get("ready"):
+        return
+    if health:
+        await stop_running(directory)
+    process = launch_tray(directory, skip_update_check=True)
+    await wait_for_tray(directory, process)

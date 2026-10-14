@@ -2,8 +2,18 @@
 setlocal EnableExtensions DisableDelayedExpansion
 set "SCROBBLER_DIR=%~dp0"
 if exist "%~dp0app\pyproject.toml" set "SCROBBLER_DIR=%~dp0app\"
+if exist "%~dp0app\runtime\pythonw.exe" set "SCROBBLER_DIR=%~dp0app\"
 cd /d "%SCROBBLER_DIR%"
 title osu! scrobbler
+
+if exist "%SCROBBLER_DIR%runtime\pythonw.exe" (
+  start "" /b "%SCROBBLER_DIR%runtime\pythonw.exe" "%SCROBBLER_DIR%tools\start_windows.py" %*
+  exit /b 0
+)
+if exist "%LOCALAPPDATA%\osu-scrobbler\launch.ps1" (
+  start "" /b powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\osu-scrobbler\launch.ps1"
+  exit /b 0
+)
 
 if exist ".venv\Scripts\python.exe" goto ready
 
@@ -33,8 +43,7 @@ if errorlevel 1 (
   echo Install Python 3.11+ and reopen START.cmd.
   goto failed
 )
-".venv\Scripts\python.exe" "%SCROBBLER_DIR%tools\start_windows.py" %*
-if errorlevel 1 goto failed
+start "" /b ".venv\Scripts\pythonw.exe" "%SCROBBLER_DIR%tools\start_windows.py" %*
 exit /b 0
 
 :failed

@@ -91,7 +91,7 @@ def test_bootstrap_uses_verified_updated_runtime_before_loading_old_app(tmp_path
     monkeypatch.setattr(module.subprocess, 'run', lambda args, **kwargs: calls.append((args, kwargs)) or SimpleNamespace(returncode=0))
     assert module.main() == 0
     assert calls[0][0][0] == str(executable)
-    assert calls[0][0][-1] == 'setup'
+    assert calls[0][0][-1] == 'launch'
     assert calls[0][1]['cwd'] == environment
     assert 'PYTHONPATH' not in calls[0][1]['env']
     current['environment'] = '../../foreign'

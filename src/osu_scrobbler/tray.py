@@ -166,7 +166,7 @@ class Supervisor:
     """Lifecycle is independent of the native icon so it can be fixture-tested."""
 
     def __init__(self, directory, *, dry_run=False, output=print, watcher_factory=None,
-                 probe=watcher_available, tosu_locator=find_tosu, tosu_starter=start_tosu):
+                 probe=watcher_available, tosu_locator=None, tosu_starter=start_tosu):
         self.directory = Path(directory)
         self.dry_run = dry_run
         self.output = output
@@ -238,14 +238,21 @@ class Supervisor:
         if self.tosu is not None and self.tosu.poll() is not None:
             self.tosu = None
         if "tosu.exe" not in names and self.tosu is None and now >= self.tosu_retry_at:
-            path = self.tosu_locator(config)
+            if self.tosu_locator is None:
+                from .tosu import ensure_tosu
+                try:
+                    path = await ensure_tosu(self.directory)
+                except (OSError, ValueError, RuntimeError, asyncio.TimeoutError):
+                    path = None
+            else:
+                path = self.tosu_locator(config)
             if path:
                 try:
                     self.tosu = self.tosu_starter(path)
                 except OSError:
                     self.notice("Could not start tosu; check config tosu_path.")
             else:
-                self.notice("tosu not found. Start it manually or set config tosu_path.")
+                self.notice("tosu not found; automatic setup will retry.")
             self.tosu_retry_at = now + 30
         if self.task is not None and self.task.done():
             try:
@@ -399,6 +406,11 @@ class TrayApp:
 def run_tray(directory, *, dry_run=False):
     require_windows()
     check_dependencies()
+    if not dry_run and startup_installed(directory):
+        install_startup(directory)  # Keep the sign-in target on the installed runtime.
+    if (Path(sys.prefix) / "portable.json").is_file():
+        from .portable import install_launcher
+        install_launcher(Path(directory))
     import pystray
     from PIL import Image, ImageDraw
     try:
