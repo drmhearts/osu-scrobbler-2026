@@ -3,6 +3,7 @@ name: Publish release
 on:
   push:
     tags: ['v*']
+    branches: ['release/v*']
 
 permissions:
   contents: read
@@ -18,16 +19,22 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+      - name: Select tagged release source
+        run: |
+          release_tag="${GITHUB_REF_NAME#release/}"
+          git fetch --depth=1 origin "refs/tags/$release_tag:refs/tags/$release_tag"
+          git checkout --detach "$release_tag"
+          echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - name: Build verified release assets
-        run: python tools/build_release.py --tag "$GITHUB_REF_NAME"
+        run: python tools/build_release.py --tag "$RELEASE_TAG"
       - name: Publish stable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: >-
-          gh release create "$GITHUB_REF_NAME"
+          gh release create "$RELEASE_TAG"
           dist/*.whl dist/osu-scrobbler-windows-source.zip dist/SHA256SUMS.txt
-          --verify-tag --title "osu! scrobbler $GITHUB_REF_NAME"
+          --verify-tag --title "osu! scrobbler $RELEASE_TAG"
           --notes-file docs/release-notes.md --generate-notes

@@ -40,6 +40,8 @@ and push a matching tag such as `v0.2.1`. The release workflow runs the Windows/
 Linux test matrix, builds the wheel/source ZIP/checksums, then publishes the
 release. GitHub supplies the wheel's digest in its API; the updater refuses assets
 without it. Manual builds: `python tools/build_release.py --tag v0.2.1`.
+If a newly introduced tag workflow did not start, push a `release/v0.2.1` branch
+to run the same tests/publisher against the exact existing tag.
 
 Keep releases immutable and retain storage/IPC compatibility for rollback and the
 original launcher. Review dependency and data changes before tagging. No release

@@ -4,6 +4,8 @@ A small Windows app: **osu! stable / lazer → tosu → MusicBrainz → Last.fm*
 Identifies music when you select a map. [MIT licensed](LICENSE); no analytics.
 [Privacy and data removal](docs/privacy.md).
 
+[Download for Windows](https://github.com/drmhearts/osu-scrobbler-2026/releases/latest/download/osu-scrobbler-windows-source.zip)
+
 ## Install
 
 1. Install Python **3.11+** and extract [tosu for Windows](https://github.com/tosuapp/tosu/releases/latest)
