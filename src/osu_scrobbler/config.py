@@ -64,7 +64,11 @@ class Config:
         directory.mkdir(parents=True, exist_ok=True)
         path = directory / "config.json"
         temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        saved = asdict(self)
+        # Older source launchers read config before handing off to the updated
+        # runtime. Keep their accepted disk value; this runtime always uses half.
+        saved["threshold_mode"] = "custom"
+        temporary.write_text(json.dumps(saved, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         if os.name != "nt":
             temporary.chmod(0o600)
         temporary.replace(path)

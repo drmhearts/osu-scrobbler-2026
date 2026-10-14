@@ -91,4 +91,5 @@ def test_saved_threshold_settings_migrate_to_half_without_commands(tmp_path, old
     config = Config.load(tmp_path)
     assert config.threshold_mode == 'half'
     config.save(tmp_path)
-    assert json.loads((tmp_path / 'config.json').read_text('utf-8'))['threshold_mode'] == 'half'
+    assert json.loads((tmp_path / 'config.json').read_text('utf-8'))['threshold_mode'] == 'custom'
+    assert Config.load(tmp_path).threshold_mode == 'half'

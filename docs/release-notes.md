@@ -1,4 +1,4 @@
-## Try osu! scrobbler 0.2.6
+## Try osu! scrobbler 0.2.7
 
 Automatic scrobbling now applies **only to the main menu and personal gameplay**.
 Song selection and multiplayer lobbies still identify songs and allow manual
