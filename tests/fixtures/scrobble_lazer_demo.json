@@ -1,0 +1,746 @@
+[
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 5,
+        "name": "selectPlay"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 35000,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 1,
+      "rawStatus": 5,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 35,
+      "totalAudioTime": 112000
+    },
+    "at": 0
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 0,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 0,
+      "totalAudioTime": 112000
+    },
+    "at": 1
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 28900,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 28.9,
+      "totalAudioTime": 112000
+    },
+    "at": 29.9
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": true
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 28900,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 28.9,
+      "totalAudioTime": 112000
+    },
+    "at": 29.9
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 28900,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 28.9,
+      "totalAudioTime": 112000
+    },
+    "at": 99.9
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 29000,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 29,
+      "totalAudioTime": 112000
+    },
+    "at": 100
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 29100,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 29.1,
+      "totalAudioTime": 112000
+    },
+    "at": 100.1
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 7,
+        "name": "resultScreen"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 29200,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 32,
+      "rawStatus": 7,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 29.2,
+      "totalAudioTime": 112000
+    },
+    "at": 100.2
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 0,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 0,
+      "totalAudioTime": 112000
+    },
+    "at": 101
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 28900,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 28.9,
+      "totalAudioTime": 112000
+    },
+    "at": 129.9
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 29000,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 29,
+      "totalAudioTime": 112000
+    },
+    "at": 130
+  },
+  {
+    "payload": {
+      "client": "lazer",
+      "game": {
+        "focused": true,
+        "paused": false
+      },
+      "state": {
+        "number": 2,
+        "name": "play"
+      },
+      "session": {
+        "playTime": 9000,
+        "playCount": 0
+      },
+      "profile": {
+        "name": "fixture player",
+        "banchoStatus": {
+          "number": 0,
+          "name": "idle"
+        }
+      },
+      "beatmap": {
+        "checksum": "54309531bb7402174969a8d837aead31",
+        "id": 12345,
+        "set": 6789,
+        "title": "Sakimori Souka",
+        "titleUnicode": "防人想歌",
+        "artist": "onoken feat. Natsukawa Yoko",
+        "artistUnicode": "onoken feat. 夏川陽子",
+        "version": "Hyper",
+        "time": {
+          "live": 29100,
+          "firstObject": 2100,
+          "lastObject": 95000,
+          "mp3Length": 112000
+        }
+      },
+      "play": {
+        "playerName": "fixture player",
+        "failed": false,
+        "score": 0
+      },
+      "files": {
+        "beatmap": "onoken - Sakimori Souka [Hyper].osu",
+        "audio": "audio.mp3"
+      },
+      "directPath": {
+        "beatmapFile": "6789 onoken - Sakimori Souka\\onoken - Sakimori Souka [Hyper].osu",
+        "beatmapAudio": "files/ab/abc123audio"
+      }
+    },
+    "tokens": {
+      "osuIsRunning": 1,
+      "status": 2,
+      "rawStatus": 2,
+      "md5": "54309531bb7402174969a8d837aead31",
+      "time": 29.1,
+      "totalAudioTime": 112000
+    },
+    "at": 130.1
+  }
+]
