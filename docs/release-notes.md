@@ -1,15 +1,14 @@
-## Try osu! scrobbler 0.2.4
+## Try osu! scrobbler 0.2.5
 
-Fixes songs being skipped when MusicBrainz is unavailable or cannot identify a
-confident match. Automatic scrobbling now uses beatmap title and artist after
-**29 seconds of active listening**, even while a lookup is pending. Missing album
-uses the track title (single fallback); album artist defaults to artist.
-Confident matches and saved corrections still improve metadata. Late results
-never submit the same play twice.
+Startup now verifies that the background monitor and tray icon are ready before
+showing the welcome terminal. A failed updated tray falls back to the original
+installation. Monitor startup errors are surfaced, and the terminal distinguishes
+a stopped background app from waiting for osu!. Process detection also recognizes
+`osu.exe`. No extra setup commands or new data collection are added.
 
-Main-menu and song-selection music now scrobble too, on stable and lazer.
-An advancing audio clock proves listening; pauses, seeks, silent selections and
-disconnect gaps earn no time. Each loop is a new listen with duplicate protection.
+Includes automatic 29-second gameplay/menu scrobbling and beatmap metadata fallback
+when MusicBrainz is missing, ambiguous, slow or unavailable. Missing album uses
+track title; album artist defaults to artist. Saved corrections still take priority.
 
 Download **osu-scrobbler-windows-source.zip** below and extract it into a permanent folder.
 

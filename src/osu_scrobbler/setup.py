@@ -7,7 +7,8 @@ import subprocess
 
 from .console import show_console
 from .lastfm import CredentialStore
-from .tray import install_startup, launch_tray, require_windows, startup_installed
+from .tray import install_startup, launch_tray, require_windows, startup_installed, wait_for_tray
+from .updater import startup
 
 
 def setup_complete(directory):
@@ -39,7 +40,11 @@ async def first_run(directory: Path, *, enable_startup=False):
     temporary = marker.with_suffix(".tmp")
     temporary.write_text(json.dumps({"complete": True}) + "\n", "utf-8")
     temporary.replace(marker)
-    launch_tray(directory)
+    # Check/install before launching the hidden process, keeping progress and
+    # errors visible and keeping long downloads outside the readiness timeout.
+    if not await startup(directory, command="tray", output=print):
+        process = launch_tray(directory, skip_update_check=True)
+        await wait_for_tray(directory, process)
     # Clear installer output only on success; preserve error messages on failure.
     subprocess.run(["cmd.exe", "/d", "/c", "cls"], check=False)
     await show_console(directory)

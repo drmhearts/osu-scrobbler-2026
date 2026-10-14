@@ -16,7 +16,7 @@ from .activity import ActivityBuffer
 from .config import Config, WatchLock, default_data_dir
 from .ipc import CommandServer, send_command
 
-GAME_PROCESSES = {"osu!.exe", "osulazer.exe"}
+GAME_PROCESSES = {"osu!.exe", "osu.exe", "osulazer.exe"}
 RELEVANT_PROCESSES = GAME_PROCESSES | {"tosu.exe"}
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 
@@ -39,10 +39,12 @@ def python_executable(*, hidden=False):
     return str(desired)
 
 
-def tray_command(directory: Path, *, dry_run=False, executable=None):
+def tray_command(directory: Path, *, dry_run=False, executable=None, skip_update_check=False):
     command = [executable or python_executable(hidden=True), "-m", "osu_scrobbler"]
     if directory.resolve() != default_data_dir().resolve():
         command += ["--data-dir", str(directory.resolve())]
+    if skip_update_check:
+        command.append("--skip-update-check")
     command.append("tray")
     if dry_run:
         command.append("--dry-run")
@@ -90,9 +92,9 @@ def startup_installed(directory: Path):
         return False
 
 
-def launch_tray(directory: Path, *, dry_run=False):
+def launch_tray(directory: Path, *, dry_run=False, skip_update_check=False):
     require_windows()
-    return subprocess.Popen(tray_command(directory, dry_run=dry_run),
+    return subprocess.Popen(tray_command(directory, dry_run=dry_run, skip_update_check=skip_update_check),
                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                             creationflags=subprocess.CREATE_NO_WINDOW)
 
@@ -136,6 +138,28 @@ async def watcher_available(directory):
         return "active_seconds" in response
     except (OSError, ValueError, RuntimeError, asyncio.TimeoutError):
         return False
+
+
+async def tray_health(directory):
+    return await asyncio.wait_for(send_command(
+        directory, {"command": "health"}, control_name="tray-control.json"), 1)
+
+
+async def wait_for_tray(directory, process=None, *, timeout=15):
+    """A spawned process is not success until its icon and monitor are ready."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            response = await tray_health(directory)
+            if response.get("ready") is True:
+                return response
+        except (RuntimeError, OSError, ValueError, asyncio.TimeoutError):
+            pass
+        code = process.poll() if process is not None and hasattr(process, "poll") else getattr(process, "returncode", None)
+        if code is not None:
+            break
+        await asyncio.sleep(0.25)
+    raise RuntimeError("Background tray did not become ready. Setup has stopped; restart START.cmd to retry.")
 
 
 class Supervisor:
@@ -279,8 +303,11 @@ class TrayApp:
         self.thread = None
         self.console = None
         self.ready = threading.Event()
+        self.start_error = None
 
     async def handle_command(self, request):
+        if request.get("command") == "health":
+            return {"ready": bool(getattr(self.icon, "visible", False)), "status": self.supervisor.status}
         if request.get("command") == "events":
             after = request.get("after", 0)
             if type(after) is not int or after < 0:
@@ -326,10 +353,19 @@ class TrayApp:
                 finally:
                     await server.close()
                     self.activity.clear()
-            asyncio.run(monitor())
+            try:
+                asyncio.run(monitor())
+            except Exception as error:
+                self.start_error = error
+                self.ready.set()
         self.thread = threading.Thread(target=background, name="osu-scrobbler-monitor")
         self.thread.start()
-        self.ready.wait(5)
+        if not self.ready.wait(10) or self.start_error is not None:
+            if self.loop is not None and not self.loop.is_closed():
+                self.loop.call_soon_threadsafe(self.supervisor.stop.set)
+            self.thread.join(timeout=2)
+            kind = type(self.start_error).__name__ if self.start_error else "timeout"
+            raise RuntimeError(f"Background monitor could not start ({kind}). Restart START.cmd; check local port/settings if it persists.") from self.start_error
         try:
             self.icon.run()
         finally:

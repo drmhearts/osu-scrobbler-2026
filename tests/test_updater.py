@@ -227,13 +227,30 @@ async def test_runtime_switch_uses_verified_python_and_only_skips_duplicate_chec
         return True
     monkeypatch.setattr(module, "Updater", lambda *args, **kwargs: updater)
     monkeypatch.setattr(module, "handoff", handoff)
+    async def checked(*args, **kwargs):
+        return {"message": "Up to date"}
+    monkeypatch.setattr(module, "update", checked)
     assert await startup(tmp_path, command="tray")
-    assert calls == [(updater.root / current["environment"], tmp_path, "tray", {"json_output": False, "skip": False, "dry_run": False, "fixture": None})]
+    assert calls == [(updater.root / current["environment"], tmp_path, "tray", {"json_output": False, "skip": True, "dry_run": False, "fixture": None})]
     calls.clear()
     assert not await startup(tmp_path, command="tray", skip=True)
     assert calls == []
     assert await startup(tmp_path, command="watch", check=False, dry_run=True, fixture=tmp_path / "demo.json")
     assert calls[0][3] == {"json_output": False, "skip": True, "dry_run": True, "fixture": tmp_path / "demo.json"}
+
+
+async def test_failed_cached_tray_returns_to_original_runtime(tmp_path, monkeypatch):
+    import osu_scrobbler.updater as module
+    updater = Updater(tmp_path, runner=Installer())
+    content = wheel()
+    await updater.install(release_from_response(published(content)), content)
+    monkeypatch.setattr(module, "Updater", lambda *args, **kwargs: updater)
+    async def failed(*args, **kwargs):
+        raise UpdateError("tray unavailable")
+    monkeypatch.setattr(module, "handoff", failed)
+    messages = []
+    assert not await startup(tmp_path, command="tray", check=False, output=messages.append)
+    assert any("original installation" in message for message in messages)
 
 
 async def test_rollback_retains_both_valid_releases_and_disables_reinstall(tmp_path):

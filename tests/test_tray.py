@@ -101,7 +101,7 @@ async def absent(directory):
     return False
 
 
-@pytest.mark.parametrize("game", ["osu!.exe", "osulazer.exe", "OSU!.EXE"])
+@pytest.mark.parametrize("game", ["osu!.exe", "osu.exe", "osulazer.exe", "OSU!.EXE"])
 async def test_game_launch_starts_one_watcher_and_close_stops_it(tmp_path, game):
     watchers = []
     def factory(*args, **kwargs):

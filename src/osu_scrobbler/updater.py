@@ -340,8 +340,25 @@ async def startup(directory, *, command, json_output=False, skip=False, check=Tr
             broken = current
             current = None
         else:
-            return await handoff(environment, directory, command, json_output=json_output, skip=not check,
-                                 dry_run=dry_run, fixture=fixture)
+            # Finish update work in this process. The child can then start its
+            # icon immediately instead of disappearing into another update check.
+            if check and Config.load(directory).auto_update:
+                try:
+                    await update(directory, updater=updater, output=output)
+                except (httpx.HTTPError, OSError, ValueError, UpdateError, asyncio.TimeoutError):
+                    output("Update check/install unavailable; continuing with the installed app.")
+                current = updater.current() or current
+                environment = updater.root / current["environment"]
+            try:
+                return await handoff(environment, directory, command, json_output=json_output, skip=True,
+                                     dry_run=dry_run, fixture=fixture)
+            except (UpdateError, OSError, RuntimeError, asyncio.TimeoutError):
+                if command != "tray":
+                    raise
+                output("Updated tray could not start; using the original installation.")
+                broken = current
+                current = None
+                return False
     if check and Config.load(directory).auto_update:
         try:
             await update(directory, updater=updater, output=output)
@@ -351,7 +368,13 @@ async def startup(directory, *, command, json_output=False, skip=False, check=Tr
         installed = updater.current()
         if installed and installed != broken and (current is None or installed != current):
             environment = updater.root / installed["environment"]
-            return await handoff(environment, directory, command, json_output=json_output, skip=True)
+            try:
+                return await handoff(environment, directory, command, json_output=json_output, skip=True)
+            except (UpdateError, OSError, RuntimeError, asyncio.TimeoutError):
+                if command != "tray":
+                    raise
+                output("Updated tray could not start; continuing with the original installation.")
+                return False
     return False
 
 
@@ -377,7 +400,16 @@ async def handoff(environment, directory, command, *, json_output=False, skip=Fa
         if sys.platform == "win32":
             options["creationflags"] = subprocess.CREATE_NO_WINDOW
     process = await asyncio.create_subprocess_exec(str(executable), *arguments, **options)
-    if command != "tray":
+    if command == "tray":
+        from .tray import wait_for_tray
+        try:
+            await wait_for_tray(directory, process)
+        except (RuntimeError, OSError, asyncio.TimeoutError) as error:
+            if process.returncode is None:
+                process.terminate()
+                await process.wait()
+            raise UpdateError("Updated tray failed to start; the installed app is preserved.") from error
+    else:
         if await process.wait():
             raise UpdateError("Updated app exited unsuccessfully. Use update --rollback to restore the previous release.")
     return True

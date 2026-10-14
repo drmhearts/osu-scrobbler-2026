@@ -63,6 +63,15 @@ async def view_command(directory, key):
     return await send_command(directory, {"command": command}) if command else None
 
 
+async def background_status(directory):
+    from .tray import tray_health
+    try:
+        response = await tray_health(directory)
+        return "Background: " + str(response.get("status") or "Starting watcher")
+    except (RuntimeError, OSError, ValueError, asyncio.TimeoutError):
+        return "Background app is not running. Close this window and double-click START.cmd."
+
+
 async def show_console(directory: Path, *, output=print):
     directory = Path(directory)
     try:
@@ -82,7 +91,7 @@ async def show_console(directory: Path, *, output=print):
             response = await asyncio.wait_for(send_command(directory, {"command": "status"}), 2)
             output(render(response))
         except (RuntimeError, OSError, ValueError, asyncio.TimeoutError):
-            output("Waiting for osu! stable or lazer. The tray monitor starts watching when it opens.")
+            output(await background_status(directory))
         for marker in ("console.focus", "console.exit"):
             with contextlib.suppress(FileNotFoundError):
                 (directory / marker).unlink()
@@ -121,7 +130,7 @@ async def show_console(directory: Path, *, output=print):
                     if response is not None:
                         output(render(response, full=key == "v"))
                 except (RuntimeError, OSError, ValueError):
-                    output("Watcher unavailable; waiting for osu! / tosu.")
+                    output(await background_status(directory))
             await asyncio.sleep(0.25)
     finally:
         if previous is not None:

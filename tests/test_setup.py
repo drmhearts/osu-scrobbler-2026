@@ -9,6 +9,13 @@ from osu_scrobbler.lastfm import Credentials
 from osu_scrobbler.setup import first_run
 
 
+@pytest.fixture(autouse=True)
+def no_live_update_check(monkeypatch):
+    async def unchanged(*args, **kwargs):
+        return False
+    monkeypatch.setattr("osu_scrobbler.setup.startup", unchanged)
+
+
 @pytest.mark.parametrize("choice", ["y", ""])
 async def test_first_click_authorizes_once_respects_startup_choice_and_then_clears_to_welcome(tmp_path, monkeypatch, capsys, choice):
     import osu_scrobbler.setup as setup
@@ -39,15 +46,18 @@ async def test_first_click_authorizes_once_respects_startup_choice_and_then_clea
     monkeypatch.setattr(cli, "authorize", authorize)
     monkeypatch.setattr("builtins.input", ask)
     monkeypatch.setattr(setup, "install_startup", install)
-    monkeypatch.setattr(setup, "launch_tray", lambda _: events.append("launch"))
+    monkeypatch.setattr(setup, "launch_tray", lambda _, **kwargs: events.append("launch"))
+    async def ready(directory, process):
+        events.append("ready")
+    monkeypatch.setattr(setup, "wait_for_tray", ready)
     monkeypatch.setattr(setup.subprocess, "run", clear)
     monkeypatch.setattr(setup, "show_console", show)
     await first_run(tmp_path)
-    assert events == ["authorize", "ask"] + (["register"] if choice else []) + ["launch", "clear", "welcome"]
+    assert events == ["authorize", "ask"] + (["register"] if choice else []) + ["launch", "ready", "clear", "welcome"]
     events.clear()
     await first_run(tmp_path)
     assert "authorize" not in events and "ask" not in events
-    assert events[-3:] == ["launch", "clear", "welcome"]
+    assert events[-4:] == ["launch", "ready", "clear", "welcome"]
     assert registered[0] is bool(choice)
     output = capsys.readouterr().out
     for secret in (credentials.api_key, credentials.api_secret, credentials.session_key):
@@ -71,6 +81,25 @@ async def test_failed_authorization_preserves_errors_and_does_not_launch_or_mark
     with pytest.raises(RuntimeError, match="Authorization unavailable"):
         await first_run(tmp_path)
     assert not (tmp_path / "setup-state.json").exists()
+
+
+async def test_failed_tray_start_does_not_clear_error_or_open_dead_console(tmp_path, monkeypatch):
+    import osu_scrobbler.setup as setup
+    monkeypatch.setattr(setup, "require_windows", lambda: None)
+    credentials = Credentials("key", "secret", "session")
+    monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: credentials))
+    monkeypatch.setattr(setup, "startup_installed", lambda _: True)
+    monkeypatch.setattr(setup, "install_startup", lambda _: None)
+    monkeypatch.setattr(setup, "launch_tray", lambda _, **kwargs: None)
+    async def failed(*args):
+        raise RuntimeError("Background tray did not become ready")
+    monkeypatch.setattr(setup, "wait_for_tray", failed)
+    monkeypatch.setattr(setup.subprocess, "run", lambda *args, **kwargs: pytest.fail("Do not clear failed setup"))
+    async def forbidden(*args):
+        pytest.fail("Do not open a console for a failed launch")
+    monkeypatch.setattr(setup, "show_console", forbidden)
+    with pytest.raises(RuntimeError, match="did not become ready"):
+        await first_run(tmp_path)
 
 
 def bootstrap_module():
