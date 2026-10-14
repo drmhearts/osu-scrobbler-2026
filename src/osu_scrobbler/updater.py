@@ -105,7 +105,7 @@ def verify_wheel(content, release):
                 raise UpdateError("Update package contains duplicate paths.")
             for entry in entries:
                 path = PurePosixPath(entry.filename)
-                if (path.is_absolute() or ".." in path.parts or "\\" in entry.filename
+                if (path.is_absolute() or ".." in path.parts or "\\" in entry.orig_filename or "\x00" in entry.orig_filename
                         or ":" in entry.filename or stat.S_ISLNK(entry.external_attr >> 16)):
                     raise UpdateError("Update package contains an unsafe path.")
             metadata_name = f"osu_scrobbler-{release.version}.dist-info/METADATA"

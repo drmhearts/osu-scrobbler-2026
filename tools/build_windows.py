@@ -90,4 +90,11 @@ def build(output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path("dist"))
-    build(parser.parse_args().output.resolve())
+    try:
+        build(parser.parse_args().output.resolve())
+    except Exception:
+        # Public CI annotations expose build failures even without log access.
+        import traceback
+        message = traceback.format_exc().replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print("::error::" + message)
+        raise

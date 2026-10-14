@@ -71,7 +71,7 @@ def verify_archive(content, release):
                     or len({name.casefold() for name in names}) != len(names)):
                 raise UpdateError("Windows package is too large or has duplicate files.")
             for entry in entries:
-                if not safe_path(entry.filename) or stat.S_ISLNK(entry.external_attr >> 16):
+                if not safe_path(entry.orig_filename) or not safe_path(entry.filename) or stat.S_ISLNK(entry.external_attr >> 16):
                     raise UpdateError("Windows package contains an unsafe path.")
             info = archive.getinfo(PREFIX + "portable.json")
             if info.file_size > 2 * 1024 * 1024:
