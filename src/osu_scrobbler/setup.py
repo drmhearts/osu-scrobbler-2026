@@ -65,7 +65,7 @@ async def first_run(directory: Path, *, enable_startup=False, check_updates=True
     await show_console(directory)
 
 
-async def launch(directory: Path):
+async def launch(directory: Path, *, skip_update_check=False):
     """START opens setup only when needed; all later launches stay in the tray."""
     require_windows()
     credentials = CredentialStore().load()
@@ -77,7 +77,7 @@ async def launch(directory: Path):
             raise RuntimeError("Setup did not finish. Reopen START.cmd to retry.")
         return
     # Updates and tosu setup stay hidden. Network failures keep the installed app.
-    if await startup(directory, command="tray"):
+    if await startup(directory, command="tray", skip=skip_update_check):
         return
     try:
         health = await tray_health(directory)

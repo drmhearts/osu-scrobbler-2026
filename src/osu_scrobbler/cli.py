@@ -113,7 +113,7 @@ async def execute(args):
     command = args.command
     if command == "launch":
         from .setup import launch
-        await launch(directory)
+        await launch(directory, skip_update_check=args.skip_update_check)
         return None
     if command == "setup":
         from .setup import first_run

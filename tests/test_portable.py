@@ -34,7 +34,14 @@ def bundle(directory, number="1.0.0", extra=None):
             if path.is_file():
                 archive.writestr(PREFIX + path.relative_to(directory).as_posix(), path.read_bytes())
         if extra:
-            archive.writestr(*extra)
+            name, payload = extra
+            if isinstance(name, str):
+                # ZipInfo normalizes Windows separators in its constructor.
+                # Set the raw archive name afterwards to test the actual input.
+                raw = ZipInfo("placeholder")
+                raw.filename = name
+                name = raw
+            archive.writestr(name, payload)
     content = data.getvalue()
     return content, Release(number, "osu-scrobbler-windows.zip", "", hashlib.sha256(content).hexdigest(), len(content))
 

@@ -1,4 +1,5 @@
 # Dispatch only this profile's verified current runtime. No system Python needed.
+param([switch]$Background, [switch]$SkipUpdateCheck)
 $ErrorActionPreference = 'Stop'
 try {
     $profileDir = $PSScriptRoot
@@ -15,7 +16,9 @@ try {
     else { $python = Join-Path $runtime 'Scripts/pythonw.exe' }
     if (!(Test-Path -LiteralPath $python -PathType Leaf)) { exit 1 }
     # Windows paths cannot contain quotes; pass the local profile as one argument.
-    $arguments = @('-m', 'osu_scrobbler', '--data-dir', ('"' + $profileDir + '"'), 'launch')
+    $arguments = @('-m', 'osu_scrobbler', '--data-dir', ('"' + $profileDir + '"'))
+    if ($SkipUpdateCheck) { $arguments += '--skip-update-check' }
+    if ($Background) { $arguments += 'tray' } else { $arguments += 'launch' }
     Start-Process -FilePath $python -ArgumentList $arguments -WorkingDirectory $runtime -WindowStyle Hidden
     exit 0
 } catch { exit 1 }
