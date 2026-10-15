@@ -157,7 +157,7 @@ async def test_menu_fallback_reaches_lastfm_when_lookup_is_unavailable(tmp_path)
             await watcher.deliver_once()
             assert len(delivered) == (1 if at == 56 else 0)
         assert delivered[0].track.album == delivered[0].track.title == "防人想歌"
-        assert delivered[0].track.album_artist == delivered[0].track.artist
+        assert delivered[0].track.album_artist == ""
         assert watcher.lookup_status.startswith("Metadata sources unavailable")
     finally:
         for task in list(watcher.tasks):

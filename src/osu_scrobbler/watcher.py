@@ -16,6 +16,7 @@ from .ipc import CommandServer
 from .lastfm import CredentialStore, LastFmClient
 from .models import Beatmap, Phase, Track
 from .metadata import MetadataClient
+from .diagnostics import ResolutionLog
 from .playback import DuplicateSuppressed, PlaybackEngine
 from .storage import Storage
 from .telemetry import InternalAdapter, StateDecoder
@@ -72,7 +73,9 @@ class Watcher:
         self.threshold = Threshold.load(directory)
         self.engine = PlaybackEngine(mode=self.threshold.mode, seconds=self.threshold.seconds)
         self.musicbrainz = musicbrainz or MetadataClient(directory / "musicbrainz.db", config.musicbrainz_user_agent,
-                                                       discogs_enabled=config.discogs_enabled)
+                                                       discogs_enabled=config.discogs_enabled,
+                                                       lastfm_enabled=config.lastfm_metadata_enabled,
+                                                       debug_sink=ResolutionLog(directory) if config.metadata_debug else None)
         self.storage = storage or Storage(directory / "history.db")
         self.lastfm = lastfm
         self.lookup_generation = 0
@@ -118,9 +121,9 @@ class Watcher:
             if not track.title.strip() or not track.artist.strip():
                 track = None
             else:
-                track = replace(track, album=track.album or track.title,
-                                album_artist=track.album_artist or track.artist,
-                                album_fallback=track.album_fallback or not bool(track.album))
+                # Unknown/pending releases stay empty; an album artist is a
+                # distinct release credit, never guessed from the track artist.
+                track = replace(track, album_artist=track.album_artist or "")
         self.engine.bind_track(track)
         if track:
             last = self.storage.last_success(track.identity)
@@ -149,7 +152,7 @@ class Watcher:
                     self.lookup_status = "Fixture metadata (no live MusicBrainz request)"
                 else:
                     # Metadata enrichment must never hold up an eligible play.
-                    self._bind(Track.fallback(self.engine.beatmap))
+                    self._bind(Track.pending(self.engine.beatmap))
                     self._task(self._lookup(self.engine.beatmap, self.lookup_generation))
         if previous_phase != self.engine.phase:
             if previous_phase == Phase.DISCONNECTED and self.engine.phase != Phase.DISCONNECTED:
@@ -163,6 +166,7 @@ class Watcher:
         except Exception:
             if generation == self.lookup_generation:
                 self.lookup_status = "Metadata sources unavailable; using beatmap metadata for scrobbling"
+                self._bind(Track.fallback(beatmap))
                 if self.json_output:
                     self.say(self.lookup_status)
             return
@@ -293,7 +297,7 @@ class Watcher:
             prior_track = self.engine.track
             prior_lookup = self.lookup_status
             if prior_track is None:
-                self._bind(Track.fallback(self.engine.beatmap))
+                self._bind(Track.pending(self.engine.beatmap))
             try:
                 observed_mono = self.observed_monotonic if self.observed_monotonic is not None else time.monotonic()
                 submission = self.engine.next_submission(observed_mono, time.time(), manual=True)
@@ -336,6 +340,9 @@ class Watcher:
                     if self.lastfm:
                         await self.lastfm.aclose()
                     self.lastfm = LastFmClient(credentials)
+                    configure = getattr(self.musicbrainz, "configure_lastfm_key", None)
+                    if configure:
+                        configure(credentials.api_key)
                     self.delivery_status = "Authorized"
                     return {"authorized": True}
                 except Exception:
@@ -376,7 +383,7 @@ class Watcher:
                 self.threshold.save(self.directory)
                 self.engine.mode = "half"
             return {"saved": key, "value": getattr(candidate, key),
-                    "restart_required": key in {"ipc_port", "musicbrainz_user_agent", "discogs_enabled"}}
+                    "restart_required": key in {"ipc_port", "musicbrainz_user_agent", "discogs_enabled", "lastfm_metadata_enabled", "metadata_debug"}}
         if not self.engine.beatmap:
             return {"error": "No selected beatmap"}
         if action == "choose":
@@ -393,10 +400,10 @@ class Watcher:
             if duration is not None and (isinstance(duration, bool) or not isinstance(duration, (int, float))
                                          or not math.isfinite(duration) or duration <= 0):
                 return {"error": "Duration must be a positive finite number of seconds"}
-            album = value.get("album") or title
-            track = Track(title, artist, album, value.get("album_artist") or artist,
+            album = value.get("album") or ""
+            track = Track(title, artist, album, value.get("album_artist") or "",
                           duration, value.get("recording_id"),
-                          value.get("release_id"), not bool(value.get("album")), 1, True,
+                          value.get("release_id"), False, 1, True,
                           {"source": "Manual correction"})
             kind = value.get("release_type") or "Unknown"
             if kind not in {"Album", "EP", "Compilation", "Single", "Soundtrack", "Mixtape", "Unknown"}:
@@ -405,7 +412,7 @@ class Watcher:
         elif action == "clear-correction":
             self.musicbrainz.clear_correction(self.engine.beatmap)
             self.lookup_generation += 1
-            self._bind(Track.fallback(self.engine.beatmap))
+            self._bind(Track.pending(self.engine.beatmap))
             self._task(self._lookup(self.engine.beatmap, self.lookup_generation))
             return {"cleared": True}
         else:

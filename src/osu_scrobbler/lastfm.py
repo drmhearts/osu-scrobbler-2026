@@ -202,9 +202,12 @@ class LastFmClient:
 
     async def submit(self, submission: Submission) -> DeliveryResult:
         track = submission.track
-        values = {"artist": track.artist, "track": track.title, "album": track.album,
-                  "albumArtist": track.album_artist, "timestamp": str(submission.playback_start),
+        values = {"artist": track.artist, "track": track.title, "timestamp": str(submission.playback_start),
                   "chosenByUser": "1"}
+        if track.album:
+            values["album"] = track.album
+        if track.album_artist:
+            values["albumArtist"] = track.album_artist
         if track.duration is not None and track.duration > 0:
             values["duration"] = str(int(track.duration))
         if track.recording_id:

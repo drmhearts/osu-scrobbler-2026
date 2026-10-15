@@ -95,7 +95,7 @@ async def test_manual_choice_wins_over_delayed_lookup_and_persists(tmp_path, mon
         await asyncio.sleep(0)
         answer = await watcher.command({"command": "config", "action": "correct",
                                          "track": {"title": "防人想歌", "artist": "夏川陽子"}})
-        assert answer["saved_correction"]["album_fallback"] is True
+        assert answer["saved_correction"]["album_fallback"] is False
         mb.futures["A"].set_result(LookupResult(track()))
         await asyncio.sleep(0)
         assert watcher.engine.track.title == "防人想歌"
@@ -132,8 +132,9 @@ async def test_lookup_never_blocks_half_song_scrobble(tmp_path, lookup):
         assert len(delivered) == 1
         submission = delivered[0]
         assert (submission.track.title, submission.track.artist, submission.track.album,
-                submission.track.album_artist) == ("曲", "歌手", "曲", "歌手")
-        assert submission.track.album_fallback and not submission.track.verified
+                submission.track.album_artist) == ("曲", "歌手", "" if lookup == "pending" else "曲", "")
+        assert submission.track.album_fallback == (lookup != "pending")
+        assert not submission.track.verified
         assert submission.playback_start == 1700000000
         if lookup == "pending":
             future.set_result(LookupResult(track()))
@@ -156,8 +157,8 @@ async def test_confident_match_enriches_metadata_before_threshold(tmp_path):
         await asyncio.sleep(0)
         await watcher.ingest(Telemetry(beatmap(), Phase.PLAYING, 29), 29, 1700000029)
         submission, = watcher.storage.pending()
-        assert submission.track.title == submission.track.album == "Correct title"
-        assert submission.track.artist == submission.track.album_artist == "Correct artist"
+        assert submission.track.title == "Correct title" and submission.track.album == ""
+        assert submission.track.artist == "Correct artist" and submission.track.album_artist == ""
         assert submission.track.recording_id == "recording"
     finally:
         await cleanup(watcher)
@@ -171,7 +172,8 @@ async def test_force_unresolved_metadata_is_temporary_and_exact(tmp_path, monkey
         watcher._bind(None)  # Ambiguous MusicBrainz outcome.
         result = await watcher.command({"command": "force"})
         assert result["dry_run"] is True
-        assert result["exact_metadata"]["album_fallback"] is True
+        assert result["exact_metadata"]["album_fallback"] is False
+        assert result["exact_metadata"]["album"] == ""
         assert result["playback_start"] == int(clock.wall)
         assert watcher.engine.track is None  # Manual fallback cannot authorize later automation.
         assert not watcher.storage.history()

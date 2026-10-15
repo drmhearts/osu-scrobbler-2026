@@ -9,16 +9,21 @@ Dependencies retain their own licenses.
 | Process names | Tray mode checks once a second for osu! Stable and lazer. Other names are discarded immediately; no command lines or process history. |
 | Local game memory | Read-only handles decode music metadata, audio clocks, screen state, replay/spectator flags and health. Bounded signature scans retain only matching addresses. No memory dump, player name, score, chat or account identifier is retained. Selected map paths are used transiently for local timing, never exported or uploaded. |
 | Terminal messages | At most 50 messages in memory, expiring after five minutes and cleared on tray exit. No new activity log files. |
+| Optional metadata debug | Disabled by default. When enabled, raw/canonical music metadata, provider IDs, candidates and matching evidence stay in two local JSONL files of roughly 256 KiB each. No credentials or request bodies. Cleared by privacy --clear-cache. |
 | Local databases | Submission music fields, timestamps/status and duplicate safeguards; settings, manual corrections and a lookup cache. History is retained for queue recovery and export. Full lookup details are excluded from submission records. |
 | Lookup cache | At most 256 entries; successful matches expire after seven days, ambiguous/missing matches after one. Expired entries are removed when the app opens or accesses the cache. Corrections remain until cleared. |
 | Last.fm credentials | API key/secret and session key in the OS vault. No password, osu! credentials or plaintext credential file. |
 | Updates | Public version/digest and current/previous program environments in the local data directory. No user identity, music history or credentials sent with release checks. |
 
-**Online requests:** MusicBrainz and Discogs receive song title/artist searches,
+**Online requests:** MusicBrainz, Discogs and Last.fm metadata receive song title/artist searches,
 optional release hints and music identifiers over HTTPS. Optional Discogs tokens
 are sent only in the Authorization header to api.discogs.com; credentials use a
 separate OS vault entry, never local config or caches. Discogs can be disabled
-with `config set discogs_enabled false` after restarting. Last.fm receives authorized song metadata, playback time
+with `config set discogs_enabled false` after restarting. Read-only Last.fm metadata
+uses the saved application API key (or OSU_LIFE_HACKS_LASTFM_API_KEY), without secret,
+session or signature. Public track/album pages can also supply matching evidence.
+Disable this source with `config set lastfm_metadata_enabled false`, then restart.
+Last.fm scrobbling separately receives authorized song metadata, playback time
 and authentication. These services can see your IP address and apply their own
 privacy policies. Selected songs are searched before gameplay; live `--dry-run`
 still uses metadata sources, while fixture demos make no external requests.
@@ -54,3 +59,6 @@ Discogs response caches expire after one day; incomplete source results retry
 after five minutes. Source preferences are in metadata-config.json. Remove the
 osu-life-hacks-discogs/token vault entry with `discogs remove` to revoke local
 access, and remove OSU_LIFE_HACKS_DISCOGS_TOKEN if set in your environment.
+Last.fm raw metadata and complete selected releases expire after seven days;
+complete unresolved metadata results retry after an hour. Normalized lookup keys
+retain Unicode identity and optional release hints; API keys are excluded.

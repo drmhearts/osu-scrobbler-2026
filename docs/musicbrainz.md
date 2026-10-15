@@ -1,103 +1,148 @@
 # Recording and release matching
 
-MusicBrainz and Discogs are independent, read-only sources. MusicBrainz supplies
-canonical recording IDs, credits and release membership. Discogs adds verified
-tracklist appearances, including EPs and compilations. Search summaries alone
-never establish that a song belongs to a release.
+MusicBrainz, Discogs and Last.fm are independent read-only sources. MusicBrainz
+supplies recording IDs and release membership; Discogs adds verified tracklists
+and formats; Last.fm supplies track/album information and Featured On candidates.
+Search summaries and popularity alone never establish release membership.
 
-## Confidence and release selection
+## Staged lookup
 
-Recording confidence uses normalized title (50%), artist/featured credits (38%),
-duration (10%) and search relevance (2%). Title and artist must both match strongly,
-and confidence must reach 0.86. Unicode, transliteration and recording aliases
-are supported. Explicit remix/live/instrumental versions must agree. Game/TV cuts
-can match longer recordings, with that difference retained. Generic Discogs titles
-such as Intro need stronger evidence. Exact recording IDs/ISRCs take priority;
-an unrelated Discogs title cannot override a known MusicBrainz recording ID.
+1. Persistent manual corrections, then the durable cache and known IDs.
+2. Parallel MusicBrainz (7 seconds), Discogs (6 seconds), Last.fm API (4.5 seconds).
+   A verified multi-track release scoring at least 0.97 can cancel slow work.
+   A single does not end the search for comparable multi-track appearances.
+3. If needed, Last.fm Featured On and Discogs alternatives/linked releases run
+   concurrently, each capped at 4 seconds. Last.fm-only matches compare this small
+   list rather than blindly accepting track.getInfo's one album.
+4. Only after these attempts finish may track title become the album fallback.
+   This fallback has Unknown type and an empty album artist, never a claimed Single.
 
-Embedded MusicBrainz releases are limited to 25 and ordered by identifier. We
-additionally browse up to 100 releases for the verified recording and inspect up
-to three distinct release groups' tracklists. Discogs reserves one general search
-and one each for EPs and compilations (20 results each), then verifies up to four
-unique release/master candidates. Duplicate single pressings cannot consume the
-whole search budget. Compilations require matching per-track artist credits;
-Various Artists is never recording evidence. Headings are ignored; subtracks are
-checked independently.
+MusicBrainz browses up to 100 releases beyond its limited embedded list and checks
+three release groups. Discogs fast search checks one page of 20 results and two
+tracklists; deeper work reserves general/EP/Compilation searches and at most four
+tracklists within the remaining budget. Public linked Discogs IDs work even when
+search requires a token. Last.fm discovers six Featured On references and verifies
+three, ordered by artist relationship then listeners. Completed candidates survive
+slow alternatives. Each Last.fm HTTP request has a two-second timeout. No full
+discographies, scraping proxies, access-block bypass or audio uploads are used.
 
-Only safe recording/release associations enter deterministic ranking:
+Playback timing, force, queuing and delivery run independently. Pending tracks
+retain title/primary artist; unknown album and albumArtist are omitted from Last.fm
+submissions. Results never rewrite queued/accepted plays or submit a play twice.
+The maximum background lookup budget is approximately eleven seconds.
 
-1. Explicit release/release-group identifiers, then a strong release-title hint.
-2. Recording confidence, with small bonuses for release-title, track-position
-   and date agreement; near-equal scores are compared in 0.02 bands.
-3. Official and real releases; supported Album/EP/Compilation/Soundtrack/Mixtape
-   releases ahead of Single and unknown formats when evidence is comparable.
-4. Known multi-track releases, original editions before deluxe/reissue variants,
-   original artist releases before compilations/soundtracks when otherwise equal.
-5. Earlier date, exact score, MusicBrainz on a tie, stable title and identifier.
+## Credits and safe evidence
 
-Dates and counts are tie-breaking evidence, not proof of recording identity.
-Explicit compilation or single hints override original-release preferences.
-Weak recordings cannot be rescued by an attractive album title. Indistinguishable
-MusicBrainz recordings still require manual choice.
+Raw osu! artist/title and Unicode spellings remain separate from canonical track
+artist, primary artist, featured performers and album artist. Incoming explicit
+feat., ft. and featuring suffixes are removed for search/default attribution;
+official provider track credits may retain them. Explicit collaborations such as
+A & B, A and B and A with B are not stripped. A provider's A & B can match incoming
+A feat. B when all names agree.
 
-Classification uses explicit MusicBrainz primary/secondary types or Discogs format
-descriptions. Album, EP, Compilation, Single, Soundtrack and Mixtape are retained.
-Useful secondary types are exposed while raw source types remain available.
-LP/track count alone cannot establish Album or EP; multi-track singles stay Singles.
-Missing release classification is **Unknown**, never a verified Single.
+Album artist comes from actual release metadata, including Various Artists,
+groups and producer credits. It is never copied automatically from track artist.
+Missing compilation per-track credits are not inferred from album artist. Last.fm
+candidates require a matching track in album.getInfo or a public album tracklist;
+Featured On links are discovery evidence only. Public HTML must establish its
+canonical track/album identity. Redirects and foreign URLs fail closed.
 
-Source agreement retains both sets of IDs and raw release metadata; conflicting
-types or edition years are not merged. Discogs IDs never enter MusicBrainz ID or
-Last.fm MBID fields. A known MB recording ID follows a Discogs release only with
-strong independent title, artist and duration agreement. Cached/structured metadata
-keeps title, artist, date, type, position/disc/count, IDs, confidence, evidence and
-ranked release alternatives. `info --full` exposes details and coverage warnings.
+Recording confidence uses title (50%), artist (38%), duration (10%) and search
+relevance (2%). Artist/title must both match strongly, versions must agree, and
+confidence must reach 0.86. Unicode, transliteration and aliases are supported.
+Remix/live/instrumental identity stays strict; game/TV cuts may match longer tracks
+with that difference retained. Exact recording IDs/ISRCs take priority and cannot
+be overridden by unrelated cross-provider title matches.
 
-## Controls and optional credentials
+## Unified ranking and classification
 
-Anonymous Discogs search and release endpoints worked in live checks on
-2026-10-14. If the API returns 401/403, coverage is reported as incomplete and
-MusicBrainz continues. Add an optional personal access token using `discogs auth`
-or **d** in the terminal; `discogs status` checks configuration and `discogs remove`
-removes the saved token. Hidden input goes into a separate OS credential vault
-entry, never config, logs, URLs or caches. `OSU_LIFE_HACKS_DISCOGS_TOKEN` is an
-optional environment override. Restart the watcher after credential changes.
-`config set discogs_enabled false` disables Discogs after restarting. Preferences
-live in `metadata-config.json` so older launchers still parse their configuration.
+Eligible candidates share a source-neutral model. Release score combines recording
+confidence (86%), membership strength (8%) and album-artist relationship (6%). Each
+independent agreeing provider adds 0.07, capped at 0.14, before selection. Duplicate
+editions from one provider cannot inflate consensus. Release-title hints add up
+to 0.04; position/date agreement adds 0.015/0.005. Scores cap at 0.999.
 
-Standard .osu files have no album, track-number, ISRC or music-database-ID fields.
-The model/adapter accepts explicit hints when supplied; Source, difficulty and
-arbitrary Tags are never guessed to be an album. `status` and `config choose N`
-select a release; `config correct` accepts `--release-type EP` with title/artist/
-album arguments. Persistent manual corrections beat caches and delayed lookups,
-and apply across difficulties.
+Deterministic ranking compares exact release IDs and strong release-title hints,
+then score bands of 0.02, official status and album-artist relationship. Comparable
+credible multi-track releases precede verified singles and unresolved formats.
+Original editions precede deluxe/live variants and compilations/soundtracks when
+otherwise equal. Last.fm listeners break ties after artist relationship and
+membership; date, exact score, provider preference (MusicBrainz/Discogs/Last.fm),
+stable title and ID finish the ordering. Popularity never raises recording
+confidence or makes an unrelated compilation eligible.
 
-## Bounds, caching and playback
+Agreement requires compatible type/year, title, primary artist, album artist,
+featured credits and duration. Supporting IDs and raw release metadata are kept.
+Last.fm album MBIDs have a separate namespace: they are not assumed to identify a
+specific MusicBrainz edition. MB recording IDs follow another source only after
+independent strong title/artist/duration agreement. Ambiguous MB recordings need
+consensus or manual choice.
 
-Sources run concurrently. MusicBrainz requests are at least one second apart;
-Discogs spacing is 2.5 seconds anonymously or 1.1 with a token. Rate-limit responses
-and exhausted-budget headers start a bounded cooldown. Discogs stops after 18
-seconds and keeps verified partial results. The coordinator caps each parallel
-source at 20 seconds and optional linked Discogs follow-up at eight. It reports
-budget exhaustion and incomplete coverage. No unbounded retries, scraping,
-third-party proxy or audio upload is used.
+Album, EP, Compilation, Single, Soundtrack and Mixtape come from explicit MB types
+or Discogs formats. Last.fm does not reliably supply formal release types:
+Last.fm-only releases remain Unknown even with verified multi-track membership.
+Count establishes a plausible multi-track appearance, not an EP/Album type. An
+agreeing source can supply a missing classification. Last.fm date/year stays empty
+unless another source supplies it. Available positions, counts, duration, IDs and
+score evidence are retained.
 
-Duplicate in-flight lookups coalesce. The durable cache holds at most 256 entries:
-complete matches seven days, misses one day, Discogs responses one day, incomplete
-results five minutes. Adapter failures never become valid empty API responses.
-New cache namespaces ignore older limited matches; corrections remain intact.
-Keys include metadata hints and configured-source mode. `privacy --clear-cache`
-removes disposable data.
+## Credentials and cache
 
-Existing playback/scrobbling timing is preserved. Metadata lookups never block
-active-time counting or force submissions. While pending or unresolved, beatmap
-title/artist remain usable with a track-title album marked as unknown release.
-Late results never rewrite queued/accepted history or submit a play twice.
-Last.fm authorization and game readers remain independent of source availability.
+Last.fm track.getInfo and album.getInfo require an application API key, without a
+session key, secret or signature. The app reuses the key saved by authentication,
+or OSU_LIFE_HACKS_LASTFM_API_KEY as an environment override. Public pages can work
+without a key, but HTTP 403/406/429 or changed HTML may make them unavailable.
+API/web cooldowns are separate; errors never become cached empty successes. Keys
+are excluded from cache keys and diagnostic files. To disable metadata only:
+`config set lastfm_metadata_enabled false`, then restart.
 
-References: [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API),
-[MusicBrainz rate limits](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting),
-[Discogs API](https://www.discogs.com/developers),
-[Discogs maintained client](https://github.com/discogs/discogs_client).
-Regression tests use mocked HTTP. Live checks validate public API access and
-response structures, not catalog-wide identification accuracy.
+Discogs may require an optional personal token: `discogs auth` or d, then restart.
+`discogs status` checks setup; `discogs remove` removes the OS vault entry.
+OSU_LIFE_HACKS_DISCOGS_TOKEN overrides the saved token. Tokens go only in the API
+Authorization header. `config set discogs_enabled false` disables the source after
+restart. MusicBrainz and scrobble authentication remain independent.
+
+Spacing: MusicBrainz one second, Discogs 2.5 seconds anonymous/1.1 authenticated,
+Last.fm 0.25 seconds, plus bounded rate-limit cooldowns. In-flight resolutions
+coalesce. The durable cache holds at most 256 entries: complete selected releases
+seven days, complete misses one hour, incomplete coverage five minutes, Last.fm
+raw metadata seven days and Discogs raw data one day. Keys preserve normalized
+Unicode identity, metadata hints and source mode; feat/ft variants share entries
+without losing current raw input. Adapter caches reuse persistent IDs/album
+identities. New namespaces invalidate old limited matches; corrections survive.
+
+## Diagnostics and corrections
+
+`config set metadata_debug true`, then restart, enables local JSONL diagnostics:
+raw/normalized input, source status, candidates, scores/evidence, selected release,
+album artist, type, reason, fallback and cache flags. metadata-debug.jsonl and one
+rotated file are limited to roughly 256 KiB each. Normal output stays compact.
+These files contain music metadata, never credentials or HTTP request bodies.
+`privacy --clear-cache` removes them and disposable cache while preserving history
+and corrections. Preferences live in metadata-config.json for older launchers.
+
+Standard .osu files lack album/ISRC/track number fields. Source, arbitrary Tags and
+difficulty names are never guessed as albums. `config choose N` and `config correct`
+provide persistent overrides, including --album-artist and --release-type EP.
+Manual changes always beat delayed lookups.
+
+## Validation and limits
+
+Mocked HTTP regressions verify Undead Corporation / The Empress -> 暴君 and
+wotaku feat. 初音ミク / イルミナティ -> wotaku / アンティーク, including Unicode,
+popularity ranking, cached difficulties and track membership. Catalog expectations
+come from the supplied examples; fixture durations/listener counts are synthetic
+test data, not a live catalog snapshot. Release types, Various Artists, official
+features/collaborations, conflicts, failures and pending delivery are also tested.
+
+Live checks on 2026-10-15 returned HTTP 406 for public Last.fm pages, and no API key
+was available. The named examples are verified adapter/coordinator regressions,
+not live end-to-end catalog checks. Catalog errors, missing credits, edition
+ambiguity, redirects, HTML changes and access blocks may need manual correction.
+Stable/lazer memory-layout compatibility is unchanged.
+
+References: [Last.fm track.getInfo](https://www.last.fm/api/show/track.getInfo),
+[Last.fm album.getInfo](https://www.last.fm/api/show/album.getInfo),
+[MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API),
+[MusicBrainz limits](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting),
+[Discogs API](https://www.discogs.com/developers).

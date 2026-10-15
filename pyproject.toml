@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "osu-life-hacks"
-version = "0.6.0"
-description = "osu! life hacks: internal osu! readers, MusicBrainz + Discogs release identification and Last.fm"
+version = "0.7.0"
+description = "osu! life hacks: internal osu! readers and MusicBrainz, Discogs + Last.fm release matching"
 license = {file = "LICENSE"}
 requires-python = ">=3.11"
 dependencies = [

@@ -1,23 +1,28 @@
-# osu! life hacks 0.6.0
+# osu! life hacks 0.7.0
 
-- MusicBrainz and Discogs reconcile real albums, EPs, compilations, soundtracks
-  and mixtapes before single fallback. Missing classification stays Unknown.
-- MusicBrainz browses recording releases beyond its limited embedded list.
-  Dedicated Discogs EP/compilation searches check actual tracks and artist credits.
-- Deterministic confidence ranking respects identifiers, release hints, duration,
-  track position, dates and editions; weak title-only matches are rejected.
-- Release types, dates, positions, IDs, source evidence and alternatives are kept.
-  Corrections take priority and source outages remain independent.
-- Anonymous Discogs lookup works where supported. Optional `discogs auth` or **d**
-  stores a personal access token securely in the OS credential vault.
-- Bounded requests, rate-limit cooldowns and versioned caches limit background
-  work. Existing Last.fm, playback timing and game readers retain their behavior.
+- Last.fm joins MusicBrainz and Discogs as a read-only release source. API album
+  tracklists and a bounded Featured On fallback verify actual track appearances.
+- Unified scoring uses cross-provider consensus before choosing a release.
+  Artist relationship and track membership outrank Last.fm listener popularity.
+- Raw game credits remain separate from canonical credits. Incoming feat./ft./
+  featuring uses the primary artist unless official metadata retains the guest.
+  Album artist comes from release metadata only.
+- Pending scrobbles omit unknown album fields and proceed on time. Track-title
+  album fallback follows completed unresolved lookup, with Unknown release type.
+- Short concurrent stages, persistent caches and optional bounded local diagnostics
+  improve coverage without holding up playback or delivery.
+- Mocked regressions cover The Empress -> 暴君 and wotaku / イルミナティ ->
+  アンティーク, release types, collaborations, compilations and source failures.
 
-Download `osu-life-hacks-windows.zip` for the standalone Windows application.
+The Last.fm API uses the application key saved by authentication or
+OSU_LIFE_HACKS_LASTFM_API_KEY. Public pages can be unavailable or change structure.
+Last.fm-only formal release types stay Unknown until another source corroborates
+them. Live public checks returned HTTP 406 and no API key was available for live
+catalog verification; the named regressions pass against mocked provider responses.
+
+Download osu-life-hacks-windows.zip for the standalone Windows application.
 Legacy updater aliases, wheels, source package and SHA256 checksums are included.
-See [matching rules and limits](https://github.com/drmhearts/osu-scrobbler-2026/blob/v0.6.0/docs/musicbrainz.md).
-Catalog gaps and ambiguous versions can still require manual choice. Public API
-access was checked live; matching regressions use mocked responses. Game-reader
-compatibility limits remain the same as 0.5.0.
+Game-reader compatibility is unchanged: Stable signatures and lazer 2026.1005.0
+x64 still need target-installation validation.
 
 ©Hky Sigh, 2026

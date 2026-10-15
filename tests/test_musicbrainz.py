@@ -57,7 +57,7 @@ async def test_selection_lookup_unicode_and_album_fallback(tmp_path, no_real_sle
     assert result.track.artist == "宇多田ヒカル"
     assert result.track.album == "光"
     assert result.track.album_fallback is True
-    assert result.track.album_artist == "宇多田ヒカル"
+    assert result.track.album_artist == ""
     assert result.track.release_id is None
     assert result.track.details["album_source"] == "track-title fallback"
     assert all(f"osu-life-hacks/{__version__}" in request.headers["User-Agent"] for request in calls)
@@ -142,8 +142,8 @@ def test_featured_artists_and_romanization_rank_conservatively():
     wrong_feature, safe = musicbrainz._rank(bm, recording("Cafe", "Beyonce feat. Stranger"))
     assert not safe
     assert wrong_feature.confidence < match.confidence
-    _, safe = musicbrainz._rank(bm, recording("Cafe", "Beyonce"))
-    assert not safe
+    stripped, safe = musicbrainz._rank(bm, recording("Cafe", "Beyonce"))
+    assert safe and stripped.artist == "Beyonce"
 
 
 def test_unicode_field_cannot_remove_explicit_remix_requirement():

@@ -37,6 +37,8 @@ class Config:
     export_path: str = ""
     musicbrainz_user_agent: str = f"osu-life-hacks/{__version__} (Hky Sigh)"
     discogs_enabled: bool = True
+    lastfm_metadata_enabled: bool = True
+    metadata_debug: bool = False
 
     def validate(self) -> None:
         if type(self.ipc_port) is not int or not 1024 <= self.ipc_port <= 65535:
@@ -51,6 +53,9 @@ class Config:
             raise ValueError("auto_update must be true or false")
         if not isinstance(self.discogs_enabled, bool):
             raise ValueError("discogs_enabled must be true or false")
+        for name in ("lastfm_metadata_enabled", "metadata_debug"):
+            if not isinstance(getattr(self, name), bool):
+                raise ValueError(name + " must be true or false")
         if not isinstance(self.export_path, str):
             raise ValueError("export_path must be a string")
         if (not isinstance(self.musicbrainz_user_agent, str) or not self.musicbrainz_user_agent.strip()
@@ -65,8 +70,9 @@ class Config:
         metadata_path = directory / "metadata-config.json"
         if metadata_path.exists():
             metadata_settings = json.loads(metadata_path.read_text("utf-8"))
-            if "discogs_enabled" in metadata_settings:
-                values["discogs_enabled"] = metadata_settings["discogs_enabled"]
+            for name in ("discogs_enabled", "lastfm_metadata_enabled", "metadata_debug"):
+                if name in metadata_settings:
+                    values[name] = metadata_settings[name]
         # Retire legacy transport settings without discarding any user settings.
         values.pop("tosu_url", None)
         values.pop("tosu_path", None)
@@ -88,7 +94,8 @@ class Config:
         # Keep new source preferences separate so updates and rollback still run.
         metadata = directory / "metadata-config.json"
         metadata_tmp = metadata.with_suffix(".tmp")
-        metadata_tmp.write_text(json.dumps({"discogs_enabled": saved.pop("discogs_enabled")}) + "\n", "utf-8")
+        metadata_tmp.write_text(json.dumps({name: saved.pop(name) for name in
+            ("discogs_enabled", "lastfm_metadata_enabled", "metadata_debug")}) + "\n", "utf-8")
         if os.name != "nt":
             metadata_tmp.chmod(0o600)
         metadata_tmp.replace(metadata)

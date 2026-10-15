@@ -49,7 +49,7 @@ def clients(tmp_path, mb_handler, dc_handler, *, token="test-token"):
     dc_http = httpx.AsyncClient(transport=httpx.MockTransport(dc_handler))
     mb = MusicBrainzClient(tmp_path / "musicbrainz.db", client=mb_http)
     dc = DiscogsClient(token=token, client=dc_http, cache_get=mb._get, cache_put=mb._put)
-    return MetadataClient(musicbrainz=mb, discogs=dc), mb_http, dc_http
+    return MetadataClient(musicbrainz=mb, discogs=dc, lastfm=False), mb_http, dc_http
 
 
 def mb_handler(releases=None, *, browsed=None, failure=False, tracklist=None):

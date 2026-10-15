@@ -77,6 +77,10 @@ class Track:
     disc_number: int | None = None
     track_count: int | None = None
     identifiers: dict[str, str] = field(default_factory=dict)
+    raw_artist: str = ""
+    raw_title: str = ""
+    primary_artist: str = ""
+    featured_artists: list[str] = field(default_factory=list)
 
     @property
     def identity(self) -> str:
@@ -86,6 +90,8 @@ class Track:
         value = asdict(self)
         if not include_details:
             value.pop("details")
+            for key in ("raw_artist", "raw_title", "primary_artist", "featured_artists"):
+                value.pop(key)
         return value
 
     @classmethod
@@ -94,9 +100,19 @@ class Track:
 
     @classmethod
     def fallback(cls, beatmap: Beatmap) -> "Track":
-        artist = beatmap.artist_unicode or beatmap.artist
+        from .credits import split_credit
+        credit = split_credit(beatmap.artist_unicode or beatmap.artist)
+        artist = credit.primary
         title = beatmap.title_unicode or beatmap.title
-        return cls(title, artist, title, artist, beatmap.duration, album_fallback=True)
+        return cls(title, artist, title, "", beatmap.duration, album_fallback=True,
+                   raw_artist=credit.raw, raw_title=title, primary_artist=artist,
+                   featured_artists=list(credit.featured), details={"resolution_stage": "fallback"})
+
+    @classmethod
+    def pending(cls, beatmap: Beatmap) -> "Track":
+        from dataclasses import replace
+        return replace(cls.fallback(beatmap), album="", album_fallback=False,
+                       details={"resolution_stage": "pending"})
 
 
 @dataclass

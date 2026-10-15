@@ -30,9 +30,12 @@ session, **q** quits. Later START launches stay in the tray.
 Main-menu music and personal gameplay count toward automatic scrobbling. Song
 selection identifies music and permits force; it does not count automatically.
 Pauses, seeks, replays, spectating, and unreadable intervals do not count.
-MusicBrainz and Discogs identify albums, EPs and compilations using verified
-track membership and confidence ranking. Unmatched releases remain unknown.
-See [matching and optional Discogs setup](docs/musicbrainz.md). Authentication, queues, history and preferences survive upgrades.
+MusicBrainz, Discogs and Last.fm identify releases using verified track membership,
+artist credits and confidence ranking. Last.fm's Featured On list supplies bounded
+fallback candidates. Release artists are separate from track artists; unclassified
+releases remain Unknown. Pending lookups never hold up scrobbling.
+See [matching, credentials and diagnostics](docs/musicbrainz.md). Authentication,
+queues, history and preferences survive upgrades.
 
 No audio capture, analytics or gameplay uploads. See [privacy](docs/privacy.md),
 [background operation](docs/background.md), and [updates](docs/updates.md).

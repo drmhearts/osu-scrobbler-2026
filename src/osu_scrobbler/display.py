@@ -22,6 +22,8 @@ def song(track):
 
 
 def album(track):
+    if (track.get("details") or {}).get("resolution_stage") == "pending":
+        return "Release: identifying…"
     kind = track.get("release_type")
     suffix = " (title fallback; release unknown)" if track.get("album_fallback") else (
         f" ({text(kind)})" if kind and kind != "Unknown" else "")

@@ -23,6 +23,7 @@ import httpx
 from unidecode import unidecode
 
 from .models import Beatmap, LookupResult, Track
+from .credits import FEATURED, primary, collaboration_match
 from .releases import classify, choose_releases, release_key
 
 
@@ -33,7 +34,7 @@ DEFAULT_USER_AGENT = (
 )
 API_URL = "https://musicbrainz.org/ws/2"
 _CACHE_SECONDS = 7 * 24 * 60 * 60
-_FEATURED = re.compile(r"\s+(?:feat\.?|ft\.?|featuring|with)\s+", re.I)
+_FEATURED = FEATURED
 _SHORT_VERSION = re.compile(
     r"\b(?:tv(?:\s+size|\s+ver(?:sion)?)?|game\s+(?:size|ver(?:sion)?)|"
     r"short(?:\s+ver(?:sion)?|\s+edit)?|cut\s+ver(?:sion)?)\b", re.I
@@ -178,7 +179,7 @@ def _release_track(recording: dict, release: dict, confidence: float) -> Track:
                      for relation in obj.get("relations") or [] if isinstance(relation.get("url"), dict)]
     return Track(
         title=title, artist=artist, album=str(release.get("title") or title),
-        album_artist=_credit(release.get("artist-credit")) or artist,
+        album_artist=_credit(release.get("artist-credit")),
         duration=_seconds(recording.get("length")), recording_id=recording.get("id"),
         release_id=release.get("id"), album_fallback=not bool(release.get("title")),
         confidence=confidence, verified=True, release_type=kind,
@@ -246,14 +247,14 @@ def _rank(beatmap: Beatmap, recording: dict) -> tuple[Track, bool]:
     credited_artists = _normal(_credit(recording.get("artist-credit")))
     for expected in requested_artists:
         expected_parts = _FEATURED.split(expected)
-        if len(expected_parts) > 1 and _normal(" ".join(expected_parts[1:])) not in credited_artists:
-            feature_mismatch = True
         for actual in _artist_names(recording):
             actual_parts = _FEATURED.split(actual)
             score = _similarity(expected, actual)
+            if collaboration_match(expected, actual):
+                score = 1.0
             if len(expected_parts) > 1 or len(actual_parts) > 1:
                 main_score = _similarity(expected_parts[0], actual_parts[0])
-                score = max(score, main_score * 0.93)
+                score = max(score, main_score * (1.0 if len(actual_parts) == 1 else 0.98))
                 if len(expected_parts) > 1 and len(actual_parts) > 1:
                     if _similarity(" ".join(expected_parts[1:]), " ".join(actual_parts[1:])) < 0.75:
                         feature_mismatch = True
@@ -334,7 +335,7 @@ class MusicBrainzClient:
         value = [beatmap.title, beatmap.artist, beatmap.title_unicode, beatmap.artist_unicode, beatmap.duration,
                  beatmap.album, beatmap.track_number, beatmap.release_date, beatmap.recording_id,
                  beatmap.release_id, beatmap.release_group_id, beatmap.isrc, beatmap.discogs_release_id]
-        return "lookup:v2:" + hashlib.sha256(json.dumps(value, ensure_ascii=False).encode()).hexdigest()
+        return "lookup:v3:" + hashlib.sha256(json.dumps(value, ensure_ascii=False).encode()).hexdigest()
 
     def _get(self, key: str) -> dict | None:
         with self._db:
@@ -455,7 +456,7 @@ class MusicBrainzClient:
     async def info(self, track: Track, *, beatmap: Beatmap | None = None) -> Track:
         if not track.recording_id:
             return track
-        key = f"info:v2:{track.recording_id}:{track.release_id or ''}"
+        key = f"info:v3:{track.recording_id}:{track.release_id or ''}"
         if beatmap is not None:
             key += self._lookup_key(beatmap)
         cached = self._get(key)

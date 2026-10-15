@@ -14,6 +14,7 @@ import httpx
 from . import __version__
 from .lastfm import CredentialStore, CredentialError
 from .models import Beatmap, Track
+from .credits import primary
 from .musicbrainz import _rank, _versions
 from .releases import classify, normal
 
@@ -128,7 +129,7 @@ def release_tracks(beatmap: Beatmap, release: dict):
                         "formats": descriptions, "track_count": len(items),
                         "track_number": item.get("position"), "id": identifier},
         }
-        result.append(replace(candidate, album=str(release["title"]), album_artist=artist or track_artist,
+        result.append(replace(candidate, album=str(release["title"]), album_artist=artist,
                               album_fallback=False, release_type=kind, release_date=date,
                               track_number=str(item.get("position") or "") or None,
                               track_count=len(items) or None, identifiers=identifiers, details=details))
@@ -205,8 +206,8 @@ class DiscogsClient:
             self._put(key, data, 24 * 60 * 60)
             return data
 
-    async def candidates(self, beatmap: Beatmap, *, links=(), search=True):
-        deadline = time.monotonic() + 18
+    async def candidates(self, beatmap: Beatmap, *, links=(), search=True, fast=False, budget=None):
+        deadline = time.monotonic() + (budget if budget is not None else (5.5 if fast else 18))
         async def request(path, params=None):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -230,8 +231,8 @@ class DiscogsClient:
             # pressings can otherwise fill an entire general-search page.
             queries = [(artist, title, None), (artist, title, "EP"), (artist, title, "Compilation")]
             queues = []
-            for artist, title, format_hint in queries:
-                params = {"type": "release", "track": _versions(title)[0], "artist": artist, "per_page": 20, "page": 1}
+            for artist, title, format_hint in (queries[:1] if fast else queries):
+                params = {"type": "release", "track": _versions(title)[0], "artist": primary(artist), "per_page": 20, "page": 1}
                 if format_hint:
                     params["format"] = format_hint
                 if beatmap.album and not format_hint:
@@ -258,7 +259,7 @@ class DiscogsClient:
         for kind, identifier in ids:
             if (kind, identifier) in seen:
                 continue
-            if len(seen) >= 4:
+            if len(seen) >= (2 if fast else 4):
                 warnings.append("Discogs candidate budget reached")
                 break
             seen.add((kind, identifier))
