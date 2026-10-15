@@ -10,6 +10,7 @@ Search summaries and popularity alone never establish release membership.
 1. Persistent manual corrections, then the durable cache and known IDs.
 2. Parallel MusicBrainz (7 seconds), Discogs (6 seconds), Last.fm API (4.5 seconds).
    A verified multi-track release scoring at least 0.97 can cancel slow work.
+   A 250 ms settling window preserves other fast adapters' completed evidence.
    A single does not end the search for comparable multi-track appearances.
 3. If needed, Last.fm Featured On and Discogs alternatives/linked releases run
    concurrently, each capped at 4 seconds. Last.fm-only matches compare this small

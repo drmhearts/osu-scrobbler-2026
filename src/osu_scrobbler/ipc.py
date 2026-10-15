@@ -54,8 +54,17 @@ class CommandServer:
             self.server.close()
             await self.server.wait_closed()
         path = self.directory / self.control_name
-        if path.exists():
-            path.unlink()
+        for attempt in range(10):
+            try:
+                path.unlink(missing_ok=True)
+                break
+            except PermissionError:
+                # Windows readers can briefly hold a non-delete-sharing handle
+                # while another client checks shutdown. Keep ownership until
+                # the control marker is removed, rather than leaving stale IPC.
+                if attempt == 9:
+                    raise
+                await asyncio.sleep(0.05)
 
 
 async def send_command(directory: Path, request: dict, *, control_name="control.json") -> dict:

@@ -11,6 +11,8 @@
   album fallback follows completed unresolved lookup, with Unknown release type.
 - Short concurrent stages, persistent caches and optional bounded local diagnostics
   improve coverage without holding up playback or delivery.
+- Fast provider chains get a short settling window before cancellation; Windows
+  IPC cleanup retries briefly when another client is reading its control marker.
 - Mocked regressions cover The Empress -> 暴君 and wotaku / イルミナティ ->
   アンティーク, release types, collaborations, compilations and source failures.
 

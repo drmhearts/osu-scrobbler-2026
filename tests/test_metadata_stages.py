@@ -108,6 +108,26 @@ async def test_slow_provider_is_cancelled_after_fast_verified_match(tmp_path):
         await http.aclose()
 
 
+async def test_fast_provider_chain_settles_before_early_cancellation(tmp_path):
+    http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"recordings": []})))
+    mb = MusicBrainzClient(tmp_path / "cache.db", client=http)
+    async def lookup(beatmap):
+        return LookupResult(track("MusicBrainz"))
+    mb.lookup = lookup
+    class Chained(Provider):
+        async def candidates(self, beatmap, **kwargs):
+            for _ in range(12):
+                await asyncio.sleep(0)
+            return [track("Discogs")], []
+    client = MetadataClient(musicbrainz=mb, discogs=Chained(), lastfm=False)
+    try:
+        result = await client.lookup(Beatmap("map", "Song", "Artist"))
+        assert result.track.details["sources"] == ["Discogs", "MusicBrainz"]
+    finally:
+        await client.aclose()
+        await http.aclose()
+
+
 async def test_fallback_waits_for_every_configured_provider_and_deeper_lastfm(tmp_path):
     entered, finish = asyncio.Event(), asyncio.Event()
     http = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"recordings": []})))

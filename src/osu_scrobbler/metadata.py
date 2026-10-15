@@ -105,6 +105,7 @@ class MetadataClient:
     async def _lookup(self, beatmap, key):
         releases, candidates, warnings = [], [], []
         statuses = {}
+        settled = False
         mb = LookupResult(None, [], "No confident recording or release")
         async def bounded(name, coro, timeout):
             try:
@@ -146,6 +147,13 @@ class MetadataClient:
                         and (not (beatmap.recording_id or beatmap.isrc) or selected.details.get("source") == "MusicBrainz")
                         and selected.details.get("release_score", 0) >= 0.97
                         and not (mb.track is None and "Ambiguous" in mb.reason)):
+                    if tasks and not settled:
+                        # Let already-fast adapters finish their short request
+                        # chains before cancelling genuinely slow providers.
+                        settled = True
+                        completed, _ = await asyncio.wait(tasks, timeout=0.25)
+                        if completed:
+                            continue  # Process their evidence before choosing.
                     for task in tasks:
                         task.cancel()
                     if tasks:

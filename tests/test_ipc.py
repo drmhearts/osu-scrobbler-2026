@@ -1,5 +1,8 @@
 import asyncio
 import json
+from pathlib import Path
+
+import pytest
 
 from osu_scrobbler.ipc import CommandServer, send_command
 
@@ -37,3 +40,31 @@ async def test_local_commands_require_private_capability(tmp_path, unused_tcp_po
         assert not received
     finally:
         await server.close()
+
+
+@pytest.mark.parametrize("failures", [2, 10])
+async def test_control_marker_cleanup_retries_transient_windows_read_handles(tmp_path, monkeypatch, failures):
+    async def handler(request):
+        return {}
+    server = CommandServer(tmp_path, 0, handler, control_name="tray-control.json")
+    await server.start()
+    marker = tmp_path / "tray-control.json"
+    unlink = Path.unlink
+    attempts = []
+    def held(path, *args, **kwargs):
+        if path == marker:
+            attempts.append(True)
+            if len(attempts) <= failures:
+                raise PermissionError("Another client is reading the Windows control marker")
+        return unlink(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "unlink", held)
+    try:
+        if failures == 10:
+            with pytest.raises(PermissionError):
+                await server.close()
+            assert marker.exists() and len(attempts) == 10
+        else:
+            await server.close()
+            assert not marker.exists() and len(attempts) == 3
+    finally:
+        unlink(marker, missing_ok=True)
