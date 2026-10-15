@@ -22,7 +22,10 @@ def song(track):
 
 
 def album(track):
-    return f"Album: {text(track.get('album'))}" + (" (title fallback)" if track.get("album_fallback") else "")
+    kind = track.get("release_type")
+    suffix = " (title fallback; release unknown)" if track.get("album_fallback") else (
+        f" ({text(kind)})" if kind and kind != "Unknown" else "")
+    return f"Album: {text(track.get('album'))}" + suffix
 
 
 def duration(value):
@@ -35,7 +38,9 @@ def duration(value):
 def candidates(tracks, limit=None):
     shown = tracks if limit is None else tracks[:limit]
     lines = [f"  {index}. {song(track)} | {text(track.get('album'))}"
-             + (" (title fallback)" if track.get("album_fallback") else "")
+             + (" (title fallback)" if track.get("album_fallback") else (
+                 f" ({text(track.get('release_type'))}, {text(track.get('release_date'))})"
+                 if track.get("release_type") not in {None, "Unknown"} else ""))
              for index, track in enumerate(shown, 1)]
     if tracks:
         lines.append("Choose: config choose N" + ("; status shows all candidates." if len(shown) < len(tracks) else ""))
@@ -51,17 +56,24 @@ def info(value, full=False):
              f"Album artist: {text(selected.get('album_artist'))}"]
     if not full:
         return "\n".join(lines)
-    lines.extend(["", "Recording (MusicBrainz)", f"  Track: {song(recording)}",
+    source = text(value.get("source") or "MusicBrainz")
+    lines.extend(["", "Recording (MusicBrainz)" if recording.get("id") not in {None, "unknown"} else f"Recording ({source})", f"  Track: {song(recording)}",
                   f"  Duration: {duration(recording.get('duration'))}"])
     for key, label in (("genres", "Genres"), ("tags", "Tags"), ("isrcs", "ISRCs"),
                        ("first_release_date", "First release"), ("disambiguation", "Version"), ("id", "ID")):
         lines.append(f"  {label}: {text(recording.get(key))}")
-    lines.extend(["", "Release (MusicBrainz)"])
+    lines.extend(["", f"Release ({source})"])
     for key, label in (("title", "Title"), ("artist", "Artist"), ("album_source", "Album source"),
                        ("date", "Date"), ("country", "Country"), ("type", "Type"), ("status", "Status"),
                        ("secondary_types", "Other types"), ("labels", "Label"), ("genres", "Genres"),
+                       ("classification", "Classification"), ("track_number", "Track position"),
+                       ("disc_number", "Disc"), ("track_count", "Tracks"),
                        ("tags", "Tags"), ("id", "ID"), ("release_group_id", "Release group")):
         lines.append(f"  {label}: {text(release.get(key))}")
+    for warning in value.get("lookup_warnings") or []:
+        lines.append(f"  Coverage: {text(warning)}")
+    for identifier, identifier_value in (value.get("identifiers") or {}).items():
+        lines.append(f"  {text(identifier)}: {text(identifier_value)}")
     for key, link in (value.get("source_links") or {}).items():
         lines.append(f"  {key.replace('_', ' ').capitalize()} link: {text(link)}")
     return "\n".join(lines)

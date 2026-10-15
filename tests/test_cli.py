@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import subprocess
+import socket
 import sys
 
 import pytest
@@ -14,7 +15,16 @@ from osu_scrobbler.storage import Storage
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def fixture_profile(directory):
+    # Isolate subprocess demos from an app already using the normal IPC port.
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    Config(ipc_port=port).save(directory)
+
+
 def test_runnable_fixture_dry_run_emits_two_qualifying_attempts_without_history(tmp_path):
+    fixture_profile(tmp_path)
     result = subprocess.run([sys.executable, "-m", "osu_scrobbler", "--data-dir", str(tmp_path),
                              "watch", "--dry-run", "--fixture", str(ROOT / "tests/fixtures/scrobble_demo.json")],
                             text=True, encoding="utf-8", capture_output=True, check=True)
@@ -31,6 +41,7 @@ def test_runnable_fixture_dry_run_emits_two_qualifying_attempts_without_history(
 
 
 def test_json_output_is_opt_in_and_retains_submission_metadata(tmp_path):
+    fixture_profile(tmp_path)
     result = subprocess.run([sys.executable, "-m", "osu_scrobbler", "--data-dir", str(tmp_path), "--json",
                              "watch", "--dry-run", "--fixture", str(ROOT / "tests/fixtures/scrobble_demo.json")],
                             text=True, encoding="utf-8", capture_output=True, check=True)

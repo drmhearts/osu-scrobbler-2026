@@ -14,11 +14,14 @@ Dependencies retain their own licenses.
 | Last.fm credentials | API key/secret and session key in the OS vault. No password, osu! credentials or plaintext credential file. |
 | Updates | Public version/digest and current/previous program environments in the local data directory. No user identity, music history or credentials sent with release checks. |
 
-**Online requests:** MusicBrainz receives song title/artist searches and recording/
-release IDs over HTTPS. Last.fm receives authorized song metadata, playback time
-and authentication. Both services can see your IP address and apply their own
+**Online requests:** MusicBrainz and Discogs receive song title/artist searches,
+optional release hints and music identifiers over HTTPS. Optional Discogs tokens
+are sent only in the Authorization header to api.discogs.com; credentials use a
+separate OS vault entry, never local config or caches. Discogs can be disabled
+with `config set discogs_enabled false` after restarting. Last.fm receives authorized song metadata, playback time
+and authentication. These services can see your IP address and apply their own
 privacy policies. Selected songs are searched before gameplay; live `--dry-run`
-still uses MusicBrainz, while fixture demos make no external requests.
+still uses metadata sources, while fixture demos make no external requests.
 
 Automatic startup updates contact GitHub for public release metadata/downloads.
 Bundled Windows updates include dependencies; legacy/source installs may also
@@ -46,3 +49,8 @@ Timer preferences and the install-folder location are stored locally. The latter
 refreshes this app's known launcher files; user-edited files are preserved. Older
 installs may read their own Python launch chain's executable paths once to find
 the install folder. No other process paths or command lines are collected.
+
+Discogs response caches expire after one day; incomplete source results retry
+after five minutes. Source preferences are in metadata-config.json. Remove the
+osu-life-hacks-discogs/token vault entry with `discogs remove` to revoke local
+access, and remove OSU_LIFE_HACKS_DISCOGS_TOKEN if set in your environment.

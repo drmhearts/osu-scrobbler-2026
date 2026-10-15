@@ -19,7 +19,7 @@ REIMU = r'''
 def commands(*, background=False):
     return '\n'.join([
         'i info  v details  s status  f force  t timer',
-        'e export  a auto-export  r Last.fm  b startup  u update',
+        'e export  a auto-export  r Last.fm  d Discogs  b startup  u update',
         ('q hide' if background else 'q quit') + '  x stop',
     ])
 

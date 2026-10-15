@@ -36,6 +36,7 @@ class Config:
     auto_update: bool = True
     export_path: str = ""
     musicbrainz_user_agent: str = f"osu-life-hacks/{__version__} (Hky Sigh)"
+    discogs_enabled: bool = True
 
     def validate(self) -> None:
         if type(self.ipc_port) is not int or not 1024 <= self.ipc_port <= 65535:
@@ -48,6 +49,8 @@ class Config:
             raise ValueError("auto_export must be true or false")
         if not isinstance(self.auto_update, bool):
             raise ValueError("auto_update must be true or false")
+        if not isinstance(self.discogs_enabled, bool):
+            raise ValueError("discogs_enabled must be true or false")
         if not isinstance(self.export_path, str):
             raise ValueError("export_path must be a string")
         if (not isinstance(self.musicbrainz_user_agent, str) or not self.musicbrainz_user_agent.strip()
@@ -59,12 +62,17 @@ class Config:
     def load(cls, directory: Path) -> "Config":
         path = directory / "config.json"
         values = json.loads(path.read_text("utf-8")) if path.exists() else {}
+        metadata_path = directory / "metadata-config.json"
+        if metadata_path.exists():
+            metadata_settings = json.loads(metadata_path.read_text("utf-8"))
+            if "discogs_enabled" in metadata_settings:
+                values["discogs_enabled"] = metadata_settings["discogs_enabled"]
         # Retire legacy transport settings without discarding any user settings.
         values.pop("tosu_url", None)
         values.pop("tosu_path", None)
         old_agent = values.get("musicbrainz_user_agent", "")
         if isinstance(old_agent, str) and re.fullmatch(
-                r"osu-scrobbler/[\d.]+ \(https://github\.com/drmhearts/osu-scrobbler-2026\)", old_agent):
+                r"(?:osu-scrobbler/[\d.]+ \(https://github\.com/drmhearts/osu-scrobbler-2026\)|osu-life-hacks/[\d.]+ \(Hky Sigh\))", old_agent):
             values.pop("musicbrainz_user_agent")
         config = cls(**values)
         config.validate()
@@ -76,6 +84,14 @@ class Config:
         path = directory / "config.json"
         temporary = path.with_suffix(".tmp")
         saved = asdict(self)
+        # Older launcher/update code parses config.json before handing off.
+        # Keep new source preferences separate so updates and rollback still run.
+        metadata = directory / "metadata-config.json"
+        metadata_tmp = metadata.with_suffix(".tmp")
+        metadata_tmp.write_text(json.dumps({"discogs_enabled": saved.pop("discogs_enabled")}) + "\n", "utf-8")
+        if os.name != "nt":
+            metadata_tmp.chmod(0o600)
+        metadata_tmp.replace(metadata)
         # Older source launchers read config before handing off to the updated
         # runtime. Keep their accepted disk value; this runtime always uses half.
         saved["threshold_mode"] = "custom"

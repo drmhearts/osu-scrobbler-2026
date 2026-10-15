@@ -28,6 +28,16 @@ class Beatmap:
     difficulty: str = ""
     audio_path: str = ""
     play_duration: float | None = None
+    # Optional trusted tags from an adapter or audio metadata. Standard .osu
+    # files do not contain these: never infer an album from Source/Tags.
+    album: str = ""
+    track_number: str = ""
+    release_date: str = ""
+    recording_id: str = ""
+    release_id: str = ""
+    release_group_id: str = ""
+    isrc: str = ""
+    discogs_release_id: str = ""
 
     @property
     def track_key(self) -> str:
@@ -61,6 +71,12 @@ class Track:
     confidence: float = 0.0
     verified: bool = False
     details: dict[str, Any] = field(default_factory=dict)
+    release_type: str = "Unknown"
+    release_date: str | None = None
+    track_number: str | None = None
+    disc_number: int | None = None
+    track_count: int | None = None
+    identifiers: dict[str, str] = field(default_factory=dict)
 
     @property
     def identity(self) -> str:

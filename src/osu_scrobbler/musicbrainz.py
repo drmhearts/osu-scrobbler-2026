@@ -23,6 +23,7 @@ import httpx
 from unidecode import unidecode
 
 from .models import Beatmap, LookupResult, Track
+from .releases import classify, choose_releases, release_key
 
 
 from . import __version__
@@ -145,26 +146,69 @@ def _release_key(release: dict) -> tuple:
     return (
         release.get("status") != "Official",
         "Compilation" in secondary or "Live" in secondary,
-        {"Album": 0, "Single": 1, "EP": 2}.get(primary, 3),
+        {"Album": 0, "EP": 1, "Single": 3}.get(primary, 3),
         release.get("date") or "9999",
         release.get("id") or "",
     )
 
 
-def _track(recording: dict, confidence: float = 0.0) -> Track:
-    artist = _credit(recording.get("artist-credit"))
+def _release_track(recording: dict, release: dict, confidence: float) -> Track:
+    artist = _credit(recording.get("artist-credit")) or "Unknown"
     title = str(recording.get("title") or "Unknown")
-    releases = [r for r in recording.get("releases") or [] if r.get("title")]
-    release = min(releases, key=_release_key) if releases else {}
+    group = release.get("release-group") or {}
+    kind = classify(group.get("primary-type"), group.get("secondary-types") or [])
+    media = release.get("media") or []
+    position = None
+    disc = None
+    count = sum(m.get("track-count") or len(m.get("tracks") or []) for m in media if isinstance(m, dict)) or None
+    for medium in media:
+        for item in medium.get("tracks") or []:
+            if (item.get("recording") or {}).get("id") == recording.get("id"):
+                position = str(item.get("number") or item.get("position") or "") or None
+                disc = medium.get("position")
+                break
+    ids = {}
+    for key, value in (("musicbrainz_recording", recording.get("id")), ("musicbrainz_release", release.get("id")),
+                       ("musicbrainz_release_group", group.get("id"))):
+        if value:
+            ids[key] = value
+    links = {key.replace("musicbrainz_", ""): "https://musicbrainz.org/" + key.replace("musicbrainz_", "").replace("_", "-") + "/" + value
+             for key, value in ids.items()}
+    discogs_links = [relation.get("url", {}).get("resource") for obj in (recording, release)
+                     for relation in obj.get("relations") or [] if isinstance(relation.get("url"), dict)]
     return Track(
-        title=title, artist=artist or "Unknown", album=str(release.get("title") or title),
-        album_artist=_credit(release.get("artist-credit")) or artist or "Unknown",
+        title=title, artist=artist, album=str(release.get("title") or title),
+        album_artist=_credit(release.get("artist-credit")) or artist,
         duration=_seconds(recording.get("length")), recording_id=recording.get("id"),
-        release_id=release.get("id"), album_fallback=not bool(release),
-        confidence=confidence, verified=True,
-        details={"disambiguation": recording.get("disambiguation") or "",
-                 "album_source": "track-title fallback" if not release else "MusicBrainz release"},
+        release_id=release.get("id"), album_fallback=not bool(release.get("title")),
+        confidence=confidence, verified=True, release_type=kind,
+        release_date=release.get("date"), track_number=position, disc_number=disc,
+        track_count=count, identifiers=ids,
+        details={
+            "source": "MusicBrainz", "membership_verified": bool(release.get("id")),
+            "album_source": "MusicBrainz release" if release.get("title") else "track-title fallback",
+            "recording": {"title": recording.get("title"), "artist": artist, "id": recording.get("id"),
+                          "duration": _seconds(recording.get("length")), "genres": recording.get("genres") or [],
+                          "tags": recording.get("tags") or [], "isrcs": recording.get("isrcs") or [],
+                          "disambiguation": recording.get("disambiguation") or None,
+                          "first_release_date": recording.get("first-release-date")},
+            "release": {"title": release.get("title"), "artist": _credit(release.get("artist-credit")) or None,
+                        "id": release.get("id"), "date": release.get("date"), "country": release.get("country"),
+                        "status": release.get("status"), "type": group.get("primary-type"),
+                        "classification": kind, "secondary_types": group.get("secondary-types") or [],
+                        "genres": release.get("genres") or [], "tags": release.get("tags") or [],
+                        "labels": [(item.get("label") or {}).get("name") for item in release.get("label-info") or []
+                                   if isinstance(item, dict) and (item.get("label") or {}).get("name")],
+                        "track_count": count, "track_number": position, "disc_number": disc,
+                        "disambiguation": release.get("disambiguation"), "release_group_id": group.get("id")},
+            "source_links": links, "discogs_links": [link for link in discogs_links if link],
+        },
     )
+
+
+def _track(recording: dict, confidence: float = 0.0) -> Track:
+    releases = [r for r in recording.get("releases") or [] if isinstance(r, dict) and r.get("title")]
+    return _release_track(recording, min(releases, key=_release_key) if releases else {}, confidence)
 
 
 def _rank(beatmap: Beatmap, recording: dict) -> tuple[Track, bool]:
@@ -229,7 +273,12 @@ def _rank(beatmap: Beatmap, recording: dict) -> tuple[Track, bool]:
         and confidence >= 0.86
         and (beatmap.duration is None or duration is None or duration >= beatmap.duration * 0.75)
     )
+    identifier_match = bool((beatmap.recording_id and recording.get("id") == beatmap.recording_id)
+                            or (beatmap.isrc and beatmap.isrc.upper() in [str(i).upper() for i in recording.get("isrcs") or []]))
+    if identifier_match:
+        confidence, eligible = 1.0, True
     result = _track(recording, round(confidence, 4))
+    result.details["identifier_match"] = identifier_match
     result.details.update({"title_match": round(title_score, 4), "artist_match": round(artist_score, 4),
                            "version_match": version_safe, "duration_match": round(duration_score, 4)})
     if beatmap.duration and duration and duration > beatmap.duration * 1.25:
@@ -270,7 +319,7 @@ class MusicBrainzClient:
                                  (json.dumps(corrected.to_dict(), ensure_ascii=False), key))
             self._db.execute("PRAGMA user_version=1")
         self._db.commit()
-        self._client = client or httpx.AsyncClient(timeout=15, follow_redirects=False)
+        self._client = client or httpx.AsyncClient(timeout=5, follow_redirects=False)
         self._owns_client = client is None
         # Keep a usable contact for the API protocol without displaying a source
         # link in the application's default configuration or welcome output.
@@ -282,8 +331,10 @@ class MusicBrainzClient:
 
     @staticmethod
     def _lookup_key(beatmap: Beatmap) -> str:
-        value = [beatmap.title, beatmap.artist, beatmap.title_unicode, beatmap.artist_unicode, beatmap.duration]
-        return "lookup:" + hashlib.sha256(json.dumps(value, ensure_ascii=False).encode()).hexdigest()
+        value = [beatmap.title, beatmap.artist, beatmap.title_unicode, beatmap.artist_unicode, beatmap.duration,
+                 beatmap.album, beatmap.track_number, beatmap.release_date, beatmap.recording_id,
+                 beatmap.release_id, beatmap.release_group_id, beatmap.isrc, beatmap.discogs_release_id]
+        return "lookup:v2:" + hashlib.sha256(json.dumps(value, ensure_ascii=False).encode()).hexdigest()
 
     def _get(self, key: str) -> dict | None:
         with self._db:
@@ -340,14 +391,20 @@ class MusicBrainzClient:
                 raise MusicBrainzError("MusicBrainz returned an unexpected response")
             return data
 
-    async def lookup(self, beatmap: Beatmap) -> LookupResult:
+    def get_correction(self, beatmap: Beatmap) -> Track | None:
         correction = self._db.execute("SELECT value FROM corrections WHERE key = ?", (beatmap.track_key,)).fetchone()
         if correction:
             try:
                 track = Track.from_dict(json.loads(correction[0]))
-                return LookupResult(track, [track], "Persistent manual correction")
+                return track
             except (TypeError, ValueError):
                 pass
+        return None
+
+    async def lookup(self, beatmap: Beatmap) -> LookupResult:
+        correction = self.get_correction(beatmap)
+        if correction:
+            return LookupResult(correction, [correction], "Persistent manual correction")
         key = self._lookup_key(beatmap)
         cached = self._get(key)
         if cached:
@@ -357,11 +414,18 @@ class MusicBrainzClient:
             except (TypeError, ValueError, KeyError):
                 pass
         query = _query(beatmap)
-        if not query:
+        if not query and not (beatmap.recording_id or beatmap.isrc):
             return LookupResult(None, [], "Beatmap title and artist are unknown; select or correct a track")
-        response = await self._request("recording", {"query": query, "limit": 25})
+        if beatmap.recording_id:
+            data = await self._request("recording/" + quote(beatmap.recording_id, safe=""),
+                                       {"inc": "artist-credits+releases+isrcs"})
+            response = {"recordings": [data]}
+        else:
+            if beatmap.isrc:
+                query = 'isrc:"' + re.sub(r"[^A-Za-z0-9]", "", beatmap.isrc) + '"'
+            response = await self._request("recording", {"query": query, "limit": 25})
         ranked = [_rank(beatmap, r) for r in response.get("recordings", []) if isinstance(r, dict)]
-        ranked.sort(key=lambda row: row[0].confidence, reverse=True)
+        ranked.sort(key=lambda row: (-row[0].confidence, row[0].identity))
         # The search may return the same recording more than once. Different
         # releases of the same recording are not ambiguous recording identities.
         unique: list[tuple[Track, bool]] = []
@@ -377,7 +441,7 @@ class MusicBrainzClient:
             best, safe = unique[0]
             ambiguous = len(unique) > 1 and best.confidence - unique[1][0].confidence < 0.08
             if safe and not ambiguous:
-                track = await self.info(best)
+                track = await self.info(best, beatmap=beatmap)
                 reason = "Confident MusicBrainz recording match"
             else:
                 reason = "Ambiguous MusicBrainz matches; choose a candidate or correct the metadata" if ambiguous else (
@@ -385,64 +449,81 @@ class MusicBrainzClient:
         result = LookupResult(track, candidates, reason)
         self._put(key, {"track": track.to_dict() if track else None,
                         "candidates": [t.to_dict() for t in candidates], "reason": reason},
-                  _CACHE_SECONDS if track else 24 * 60 * 60)
+                  300 if track and track.details.get("lookup_warnings") else (_CACHE_SECONDS if track else 24 * 60 * 60))
         return result
 
-    async def info(self, track: Track) -> Track:
+    async def info(self, track: Track, *, beatmap: Beatmap | None = None) -> Track:
         if not track.recording_id:
-            return replace(track, details={**track.details, "recording": {}, "release": {},
-                                         "source_links": {}})
-        key = f"info:{track.recording_id}:{track.release_id or ''}"
+            return track
+        key = f"info:v2:{track.recording_id}:{track.release_id or ''}"
+        if beatmap is not None:
+            key += self._lookup_key(beatmap)
         cached = self._get(key)
         if cached:
             try:
-                details = Track.from_dict(cached)
-                return self._enriched(track, details)
+                return self._enriched(track, Track.from_dict(cached))
             except (TypeError, ValueError):
                 pass
         recording = await self._request("recording/" + quote(track.recording_id, safe=""),
-                                        {"inc": "artist-credits+releases+genres+tags+isrcs"})
-        resolved = _track(recording, track.confidence)
-        resolved.recording_id = recording.get("id") or track.recording_id
-        # Preserve a user-chosen release; otherwise choose an available release.
-        release_id = track.release_id or resolved.release_id
-        release: dict = {}
-        if release_id:
-            release = await self._request("release/" + quote(release_id, safe=""),
-                                          {"inc": "artist-credits+release-groups+labels+genres+tags"})
-            resolved.release_id = release.get("id") or release_id
-            resolved.album = str(release.get("title") or resolved.title)
-            resolved.album_fallback = not bool(release.get("title"))
-            resolved.album_artist = _credit(release.get("artist-credit")) or resolved.artist
-        group = release.get("release-group") or {}
-        links = {"recording": f"https://musicbrainz.org/recording/{track.recording_id}"}
-        if resolved.release_id:
-            links["release"] = f"https://musicbrainz.org/release/{resolved.release_id}"
-        if group.get("id"):
-            links["release_group"] = f"https://musicbrainz.org/release-group/{group['id']}"
-        details = {
-            "album_source": "track-title fallback" if resolved.album_fallback else "MusicBrainz release",
-            "recording": {"title": recording.get("title"),
-                          "artist": _credit(recording.get("artist-credit")) or None,
-                          "id": recording.get("id") or track.recording_id,
-                          "duration": resolved.duration, "genres": recording.get("genres") or [],
-                          "tags": recording.get("tags") or [], "isrcs": recording.get("isrcs") or [],
-                          "disambiguation": recording.get("disambiguation") or None,
-                          "first_release_date": recording.get("first-release-date")},
-            "release": {"title": release.get("title"),
-                        "artist": _credit(release.get("artist-credit")) or None,
-                        "id": release.get("id") or release_id,
-                        "date": release.get("date"), "country": release.get("country"),
-                        "status": release.get("status"), "type": group.get("primary-type"),
-                        "secondary_types": group.get("secondary-types") or [],
-                        "genres": release.get("genres") or [], "tags": release.get("tags") or [],
-                        "labels": [(item.get("label") or {}).get("name") for item in release.get("label-info") or []
-                                   if isinstance(item, dict) and (item.get("label") or {}).get("name")],
-                        "release_group_id": group.get("id")},
-            "source_links": links,
-        }
-        resolved.details = details
-        self._put(key, resolved.to_dict())
+                                        {"inc": "artist-credits+releases+genres+tags+isrcs+url-rels"})
+        recording.setdefault("id", track.recording_id)
+        releases = {r["id"]: r for r in recording.get("releases") or [] if isinstance(r, dict) and r.get("id")}
+        warnings = []
+        if beatmap is not None:
+            try:
+                # Embedded recording releases are limited to 25, sorted by UUID,
+                # not by confidence or date. Browse real recording membership.
+                page = await self._request("release", {"recording": track.recording_id, "limit": 100,
+                    "offset": 0, "inc": "artist-credits+release-groups+media"})
+                releases.update({r["id"]: r for r in page.get("releases") or [] if isinstance(r, dict) and r.get("id")})
+                if page.get("release-count", 0) > 100:
+                    warnings.append("MusicBrainz release candidate budget reached (first 100)")
+            except MusicBrainzError as error:
+                warnings.append(str(error))
+        provisional = [_release_track(recording, r, track.confidence) for r in releases.values()]
+        context = beatmap or Beatmap("info", track.title, track.artist, release_id=track.release_id or "")
+        provisional.sort(key=lambda t: release_key(t, context))
+        ids = [t.release_id for t in provisional]
+        if beatmap is None and track.release_id:
+            ids = [track.release_id]
+        elif beatmap and beatmap.release_id:
+            # A trusted release tag still requires this recording in its tracklist.
+            ids = [beatmap.release_id] + [rid for rid in ids if rid != beatmap.release_id]
+        # Fetch a bounded set of distinct groups rather than duplicate pressings.
+        selected_ids = []
+        groups = set()
+        for rid in ids:
+            group = ((releases.get(rid) or {}).get("release-group") or {}).get("id") or rid
+            if group not in groups:
+                selected_ids.append(rid)
+                groups.add(group)
+            if len(selected_ids) >= (3 if beatmap is not None else 1):
+                break
+        for rid in selected_ids:
+            try:
+                release = await self._request("release/" + quote(rid, safe=""),
+                    {"inc": "artist-credits+release-groups+labels+genres+tags+recordings+url-rels"})
+                release.setdefault("id", rid)
+                items = [item for m in release.get("media") or [] for item in m.get("tracks") or []]
+                if items and not any((item.get("recording") or {}).get("id") == track.recording_id for item in items):
+                    releases.pop(rid, None)
+                    warnings.append("Rejected a release whose tracklist does not contain this recording")
+                    continue
+                # Direct release hints must have tracklist evidence; title alone
+                # cannot establish membership in a different release.
+                if rid not in releases and not items:
+                    continue
+                releases[rid] = {**releases.get(rid, {}), **release}
+            except MusicBrainzError as error:
+                warnings.append(str(error))
+        options = choose_releases(context, [_release_track(recording, r, track.confidence) for r in releases.values()])
+        resolved = options[0] if options else _release_track(recording, {}, track.confidence)
+        # info() respects a user-selected release even without automatic confidence.
+        if beatmap is None and track.release_id in releases:
+            resolved = _release_track(recording, releases[track.release_id], track.confidence)
+        resolved.details["release_candidates"] = [t.to_dict() for t in options[:10]]
+        resolved.details["lookup_warnings"] = warnings
+        self._put(key, resolved.to_dict(), 300 if warnings else _CACHE_SECONDS)
         return self._enriched(track, resolved)
 
     @staticmethod

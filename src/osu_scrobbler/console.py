@@ -75,6 +75,9 @@ async def view_command(directory, key):
             return await authorize(directory)
         except (httpx.HTTPError, OSError, RuntimeError, ValueError):
             return {"error": "Last.fm connection failed. Try again."}
+    if key == "d":
+        from .cli import execute, parser
+        return await execute(parser().parse_args(["--data-dir", str(directory), "discogs", "auth"]))
     if key == "x":
         await send_command(directory, {"command": "quit"}, control_name="tray-control.json")
         return None
@@ -181,14 +184,14 @@ async def show_console(directory: Path, *, output=print):
                         key = sys.stdin.read(1).lower()
             if key == "q":
                 return
-            if key in "fivesatbu?xr" and key:
+            if key in "fivesatbu?xrd" and key:
                 try:
-                    if key in {"t", "r"} and previous is not None:
+                    if key in {"t", "r", "d"} and previous is not None:
                         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
                     try:
                         response = await view_command(directory, key)
                     finally:
-                        if key in {"t", "r"} and previous is not None:
+                        if key in {"t", "r", "d"} and previous is not None:
                             tty.setcbreak(sys.stdin.fileno())
                     if response is not None:
                         output(render(response, full=key == "v"))

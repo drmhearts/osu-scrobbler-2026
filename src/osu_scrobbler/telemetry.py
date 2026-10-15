@@ -94,6 +94,10 @@ class StateDecoder:
             set_id,
             difficulty,
             play_duration=last_object / 1000 if last_object is not None and last_object > 0 else None,
+            album=_text(raw.get("album")), track_number=_text(raw.get("trackNumber")),
+            release_date=_text(raw.get("releaseDate")), recording_id=_text(raw.get("recordingId")),
+            release_id=_text(raw.get("releaseId")), release_group_id=_text(raw.get("releaseGroupId")),
+            isrc=_text(raw.get("isrc")), discogs_release_id=_text(raw.get("discogsReleaseId")),
         )
 
     @staticmethod

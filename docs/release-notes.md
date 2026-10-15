@@ -1,19 +1,23 @@
-# osu! life hacks 0.5.0
+# osu! life hacks 0.6.0
 
-- Internal read-only Stable and lazer readers replace the external reader, its
-  download/setup code, WebSockets and child-process supervision.
-- Lazer targets Windows x64 2026.1005.0; unsupported layouts wait safely.
-- New application/package branding, compact artwork, complete command menu,
-  and the attribution below. The application no longer displays a source link.
-- Existing Last.fm credentials, profile data, timers, tray startup and update
-  verification remain in place. Legacy release aliases allow older updaters to migrate.
+- MusicBrainz and Discogs reconcile real albums, EPs, compilations, soundtracks
+  and mixtapes before single fallback. Missing classification stays Unknown.
+- MusicBrainz browses recording releases beyond its limited embedded list.
+  Dedicated Discogs EP/compilation searches check actual tracks and artist credits.
+- Deterministic confidence ranking respects identifiers, release hints, duration,
+  track position, dates and editions; weak title-only matches are rejected.
+- Release types, dates, positions, IDs, source evidence and alternatives are kept.
+  Corrections take priority and source outages remain independent.
+- Anonymous Discogs lookup works where supported. Optional `discogs auth` or **d**
+  stores a personal access token securely in the OS credential vault.
+- Bounded requests, rate-limit cooldowns and versioned caches limit background
+  work. Existing Last.fm, playback timing and game readers retain their behavior.
 
-Download `osu-life-hacks-windows.zip` after this version is published. Source and
-wheel packages remain available. No game-reader download is required. Internet
-is used for Last.fm, MusicBrainz and application updates.
-
-The internal layouts have synthetic regression coverage, not live gameplay
-validation yet. See [compatibility and manual release checks](telemetry.md).
-The source license and dependency licenses are preserved.
+Download `osu-life-hacks-windows.zip` for the standalone Windows application.
+Legacy updater aliases, wheels, source package and SHA256 checksums are included.
+See [matching rules and limits](https://github.com/drmhearts/osu-scrobbler-2026/blob/v0.6.0/docs/musicbrainz.md).
+Catalog gaps and ambiguous versions can still require manual choice. Public API
+access was checked live; matching regressions use mocked responses. Game-reader
+compatibility limits remain the same as 0.5.0.
 
 ©Hky Sigh, 2026

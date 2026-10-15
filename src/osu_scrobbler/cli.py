@@ -17,13 +17,15 @@ from .lastfm import CredentialStore, Credentials, LastFmClient
 
 def parser():
     result = argparse.ArgumentParser(prog="osu-life-hacks",
-        description="osu! life hacks: read-only osu! state → MusicBrainz → Last.fm", epilog="©Hky Sigh, 2026")
+        description="osu! life hacks: osu! → MusicBrainz + Discogs → Last.fm", epilog="©Hky Sigh, 2026")
     result.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Private configuration/history directory")
     result.add_argument("--json", action="store_true", help="Show structured output instead of short terminal messages")
     result.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     commands = result.add_subparsers(dest="command", required=True)
     auth = commands.add_parser("auth", help="Authorize Last.fm through a browser and save credentials in the OS vault")
     auth.add_argument("--session", action="store_true", help="Securely enter an already authorized session key")
+    discogs = commands.add_parser("discogs", help="Configure optional Discogs release search")
+    discogs.add_argument("discogs_action", choices=["auth", "status", "remove"])
     watch = commands.add_parser("watch", help="Start the sole gameplay watcher and local command server")
     watch.add_argument("--dry-run", action="store_true", help="Preview submissions; never write to Last.fm")
     watch.add_argument("--fixture", type=Path, help="Simulated telemetry replay; requires --dry-run and makes no MusicBrainz requests")
@@ -39,7 +41,7 @@ def parser():
     setting = actions.add_parser("set")
     setting.add_argument("key", choices=list(asdict(Config())))
     setting.add_argument("value", help="JSON boolean/integer, or string")
-    choose = actions.add_parser("choose", help="Persist a numbered MusicBrainz candidate for the selected track")
+    choose = actions.add_parser("choose", help="Persist a numbered metadata candidate for the selected track")
     choose.add_argument("index", type=int)
     correct = actions.add_parser("correct", help="Persist selected-track metadata")
     correct.add_argument("--title", required=True)
@@ -47,6 +49,7 @@ def parser():
     for field in ("album", "album-artist", "recording-id", "release-id"):
         correct.add_argument("--" + field)
     correct.add_argument("--duration", type=float, help="Full recording duration in seconds")
+    correct.add_argument("--release-type", choices=["Album", "EP", "Compilation", "Single", "Soundtrack", "Mixtape", "Unknown"])
     actions.add_parser("clear-correction")
     queue = commands.add_parser("queue", help="Inspect history or explicitly retry a delivery")
     queue_actions = queue.add_subparsers(dest="queue_action")
@@ -112,6 +115,17 @@ async def execute(args):
     directory = args.data_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
     command = args.command
+    if command == "discogs":
+        from .discogs import DiscogsTokenStore, configured_token
+        store = DiscogsTokenStore()
+        if args.discogs_action == "auth":
+            token = await asyncio.to_thread(getpass.getpass, "Discogs personal access token (hidden): ")
+            store.save_token(token.strip())
+            return {"message": "Discogs token saved in the OS credential vault. Restart the watcher to apply."}
+        if args.discogs_action == "remove":
+            store.remove_token()
+            return {"message": "Stored Discogs token removed. Restart the watcher to apply. An environment token takes precedence."}
+        return {"message": "Discogs search: " + ("token configured" if configured_token() else "anonymous; discogs auth adds an optional token")}
     if command == "launch":
         from .setup import launch
         await launch(directory, skip_update_check=args.skip_update_check)
@@ -193,7 +207,7 @@ async def execute(args):
             request["index"] = args.index
         elif args.action == "correct":
             request["track"] = {key: value for key, value in vars(args).items()
-                                if key in {"title", "artist", "album", "album_artist", "recording_id", "release_id", "duration"} and value is not None}
+                                if key in {"title", "artist", "album", "album_artist", "recording_id", "release_id", "duration", "release_type"} and value is not None}
         if not (directory / "control.json").exists() and request["action"] in {"show", "set"}:
             config = Config.load(directory)
             if request["action"] == "set":

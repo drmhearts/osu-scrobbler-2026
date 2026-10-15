@@ -15,7 +15,7 @@ from .display import render
 from .ipc import CommandServer
 from .lastfm import CredentialStore, LastFmClient
 from .models import Beatmap, Phase, Track
-from .musicbrainz import MusicBrainzClient
+from .metadata import MetadataClient
 from .playback import DuplicateSuppressed, PlaybackEngine
 from .storage import Storage
 from .telemetry import InternalAdapter, StateDecoder
@@ -34,8 +34,12 @@ def display_info(track: Track) -> dict:
     recording.setdefault("artist", track.artist)
     release = {key: None for key in ("date", "country", "status", "type", "secondary_types", "genres", "tags", "labels", "release_group_id")}
     release.update(details.get("release") or {})
-    release.update(id=track.release_id, album=track.album, album_artist=track.album_artist,
+    release.update(id=track.release_id or release.get("id"), album=track.album, album_artist=track.album_artist,
                    album_source="track-title fallback" if track.album_fallback else details.get("album_source", "Manual metadata"))
+    release.update(classification=track.release_type, track_number=track.track_number,
+                   disc_number=track.disc_number, track_count=track.track_count)
+    if track.release_date:
+        release["date"] = track.release_date
     def unknown(value):
         if value is None or value == "" or value == []:
             return "unknown"
@@ -45,8 +49,12 @@ def display_info(track: Track) -> dict:
             return [unknown(item) for item in value]
         return value
     return unknown({"selected_metadata": {"title": track.title, "artist": track.artist, "album": track.album,
-                                           "album_artist": track.album_artist, "duration": track.duration},
+                                           "album_artist": track.album_artist, "duration": track.duration,
+                                           "release_type": track.release_type},
                     "recording": recording, "release": release,
+                    "source": details.get("source", "MusicBrainz"), "identifiers": track.identifiers,
+                    "sources": details.get("sources") or [], "lookup_warnings": details.get("lookup_warnings") or [],
+                    "release_alternatives": details.get("release_alternatives") or [],
                     "source_links": details.get("source_links") or {"recording": None, "release": None}})
 
 
@@ -63,7 +71,8 @@ class Watcher:
         self.delivery_notices = {}
         self.threshold = Threshold.load(directory)
         self.engine = PlaybackEngine(mode=self.threshold.mode, seconds=self.threshold.seconds)
-        self.musicbrainz = musicbrainz or MusicBrainzClient(directory / "musicbrainz.db", config.musicbrainz_user_agent)
+        self.musicbrainz = musicbrainz or MetadataClient(directory / "musicbrainz.db", config.musicbrainz_user_agent,
+                                                       discogs_enabled=config.discogs_enabled)
         self.storage = storage or Storage(directory / "history.db")
         self.lastfm = lastfm
         self.lookup_generation = 0
@@ -153,7 +162,7 @@ class Watcher:
             result = await self.musicbrainz.lookup(beatmap)
         except Exception:
             if generation == self.lookup_generation:
-                self.lookup_status = "MusicBrainz unavailable; using beatmap metadata for scrobbling"
+                self.lookup_status = "Metadata sources unavailable; using beatmap metadata for scrobbling"
                 if self.json_output:
                     self.say(self.lookup_status)
             return
@@ -308,7 +317,7 @@ class Watcher:
             try:
                 detailed = track if self.fixture else await self.musicbrainz.info(track)
             except Exception:
-                return {"error": "MusicBrainz details unavailable", "track": track.to_dict()}
+                return {"error": "Metadata details unavailable", "track": track.to_dict()}
             return {"info": display_info(detailed), "selection_key": selected_key}
         if cmd == "export":
             try:
@@ -367,7 +376,7 @@ class Watcher:
                 self.threshold.save(self.directory)
                 self.engine.mode = "half"
             return {"saved": key, "value": getattr(candidate, key),
-                    "restart_required": key in {"ipc_port", "musicbrainz_user_agent"}}
+                    "restart_required": key in {"ipc_port", "musicbrainz_user_agent", "discogs_enabled"}}
         if not self.engine.beatmap:
             return {"error": "No selected beatmap"}
         if action == "choose":
@@ -389,6 +398,10 @@ class Watcher:
                           duration, value.get("recording_id"),
                           value.get("release_id"), not bool(value.get("album")), 1, True,
                           {"source": "Manual correction"})
+            kind = value.get("release_type") or "Unknown"
+            if kind not in {"Album", "EP", "Compilation", "Single", "Soundtrack", "Mixtape", "Unknown"}:
+                return {"error": "Unknown release type"}
+            track.release_type = kind
         elif action == "clear-correction":
             self.musicbrainz.clear_correction(self.engine.beatmap)
             self.lookup_generation += 1
@@ -517,12 +530,12 @@ class Watcher:
                     finally:
                         if previous is not None:
                             tty.setcbreak(sys.stdin.fileno())
-                elif key == "r":
+                elif key in {"r", "d"}:
                     from .console import view_command
                     if previous is not None:
                         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
                     try:
-                        response = await asyncio.to_thread(lambda: asyncio.run(view_command(self.directory, "r")))
+                        response = await asyncio.to_thread(lambda: asyncio.run(view_command(self.directory, key)))
                         if response:
                             self.say(response)
                     finally:

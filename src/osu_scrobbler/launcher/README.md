@@ -19,7 +19,7 @@ These internal readers need live validation on the target installation; see
 | **s** / **f** | Status / force scrobble |
 | **t** | Timer: half, full, or seconds |
 | **e** / **a** | Export / toggle automatic export |
-| **r** | Connect Last.fm |
+| **r** / **d** | Connect Last.fm / optional Discogs token |
 | **b** | Toggle Windows startup |
 | **u** | Update and restart |
 | **q** / **x** | Hide console / stop app |
@@ -30,8 +30,9 @@ session, **q** quits. Later START launches stay in the tray.
 Main-menu music and personal gameplay count toward automatic scrobbling. Song
 selection identifies music and permits force; it does not count automatically.
 Pauses, seeks, replays, spectating, and unreadable intervals do not count.
-MusicBrainz supplies album metadata where possible; unmatched songs use their
-title as the album. Authentication, queues, history and preferences survive upgrades.
+MusicBrainz and Discogs identify albums, EPs and compilations using verified
+track membership and confidence ranking. Unmatched releases remain unknown.
+See [matching and optional Discogs setup](docs/musicbrainz.md). Authentication, queues, history and preferences survive upgrades.
 
 No audio capture, analytics or gameplay uploads. See [privacy](docs/privacy.md),
 [background operation](docs/background.md), and [updates](docs/updates.md).
