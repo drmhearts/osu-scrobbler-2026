@@ -86,7 +86,7 @@ def render(value, *, full=False, json_output=False):
         return json.dumps({"message": value} if isinstance(value, str) else value, ensure_ascii=False)
     if isinstance(value, str):
         return text(value)
-    if set(value) == {"message"}:
+    if set(value) == {"message"} or ("message" in value and ("download_job" in value or "destination" in value or "set_ids" in value)):
         return text(value["message"])
     if "error" in value:
         # Preserve the requested duplicate-submission wording exactly.

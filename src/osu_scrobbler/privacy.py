@@ -14,6 +14,7 @@ def describe(directory):
         f"Local: settings, music cache/corrections and scrobble queue/history in {directory}.\n"
         "Credentials: OS vault. Terminal activity: memory only, up to 5 minutes.\n"
         "Optional metadata_debug writes bounded local music-resolution logs.\n"
+        "Optional maps: osu! website requests, dedicated Windows-protected browser session, local library IDs/checkpoints and shared request cooldowns.\n"
         "privacy --clear-cache removes disposable cache and debug/activity logs; keeps history/corrections."
     )}
 

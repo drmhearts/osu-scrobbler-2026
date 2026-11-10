@@ -363,6 +363,8 @@ class Watcher:
         if cmd == "config":
             return await self._configure(request)
         if cmd == "quit":
+            from .downloads.service import pause_active
+            pause_active(self.directory)
             self.stop.set()
             return {"stopping": True}
         return {"error": "Unknown watcher command"}
@@ -537,7 +539,7 @@ class Watcher:
                     finally:
                         if previous is not None:
                             tty.setcbreak(sys.stdin.fileno())
-                elif key in {"r", "d"}:
+                elif key in {"r", "d", "m"}:
                     from .console import view_command
                     if previous is not None:
                         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
@@ -551,6 +553,8 @@ class Watcher:
                 elif key in "bu?x" and key:
                     from .console import view_command
                     if key == "x":
+                        from .downloads.service import pause_active
+                        pause_active(self.directory)
                         self.stop.set()
                     else:
                         response = await view_command(self.directory, key)

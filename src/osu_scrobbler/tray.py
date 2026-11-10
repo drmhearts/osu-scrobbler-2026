@@ -308,7 +308,13 @@ class TrayApp:
         self.console = subprocess.Popen([python_executable(), "-m", "osu_scrobbler", "--data-dir", str(self.directory.resolve()), "console"],
                                         creationflags=subprocess.CREATE_NEW_CONSOLE)
 
+    def open_downloads(self, *args):
+        subprocess.Popen([python_executable(), "-m", "osu_scrobbler", "--data-dir", str(self.directory.resolve()), "maps"],
+                         creationflags=subprocess.CREATE_NEW_CONSOLE)
+
     def quit(self, *args):
+        from .downloads.service import pause_active
+        pause_active(self.directory)
         # First-run setup can own the view without being this icon's child.
         (self.directory / "console.exit").touch()
         if self.loop is not None and not self.loop.is_closed():
@@ -401,6 +407,7 @@ def run_tray(directory, *, dry_run=False):
         from .bootstrap import repair_launcher
         app.replace_legacy = repair_launcher(directory)
         icon.menu = pystray.Menu(pystray.MenuItem("Show terminal", app.open_console, default=True),
+                                pystray.MenuItem("Beatmap downloads", app.open_downloads),
                                 pystray.MenuItem("Exit", app.quit))
         app.run()
     finally:

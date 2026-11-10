@@ -1,30 +1,31 @@
-# osu! life hacks 0.7.0
+# osu! life hacks 0.8.0
 
-- Last.fm joins MusicBrainz and Discogs as a read-only release source. API album
-  tracklists and a bounded Featured On fallback verify actual track appearances.
-- Unified scoring uses cross-provider consensus before choosing a release.
-  Artist relationship and track membership outrank Last.fm listener popularity.
-- Raw game credits remain separate from canonical credits. Incoming feat./ft./
-  featuring uses the primary artist unless official metadata retains the guest.
-  Album artist comes from release metadata only.
-- Pending scrobbles omit unknown album fields and proceed on time. Track-title
-  album fallback follows completed unresolved lookup, with Unknown release type.
-- Short concurrent stages, persistent caches and optional bounded local diagnostics
-  improve coverage without holding up playback or delivery.
-- Fast provider chains get a short settling window before cancellation; Windows
-  IPC cleanup retries briefly when another client is reading its control marker.
-- Mocked regressions cover The Empress -> 暴君 and wotaku / イルミナティ ->
-  アンティーク, release types, collaborations, compilations and source failures.
+- Added a persistent bulk beatmap downloader under m maps, the tray menu and the
+  maps CLI. Defaults to 25 recently ranked osu!standard beatmapsets, newest first.
+- Optional mode, genre, category, inclusive UTC ranked-date, successful set-count,
+  full difficulty-length and host mapper filters. Mode/length must match the same
+  difficulty; a full set may contain additional difficulties and modes.
+- Dedicated visible Edge/Chrome sign-in with normal Windows-protected session
+  storage; no game-token extraction or browser-verification bypass.
+- Read-only Stable/lazer library deduplication, transactional queues/history,
+  validated full-media archives and exclusive placement. Lazer uses its own
+  archive importer; downloaded, queued and confirmed-import states stay distinct.
+- Separate background worker, shared persistent conservative pacing/cooldowns,
+  pause/resume/cancel and crash recovery. Tray Exit and updates pause transfers.
+  Server limits can still apply, including downloads made elsewhere.
+- Updated Pillow to 13.x for published security fixes; other direct dependencies
+  were checked against current releases. Reader offsets remain unchanged: regular
+  lazer 2026.1005.0 is supported; tachyon builds require independent validation.
+- Added download setup/recovery/privacy documentation and tools/publish.ps1 for
+  maintainers to test, push and publish through the existing CI release pipeline.
 
-The Last.fm API uses the application key saved by authentication or
-OSU_LIFE_HACKS_LASTFM_API_KEY. Public pages can be unavailable or change structure.
-Last.fm-only formal release types stay Unknown until another source corroborates
-them. Live public checks returned HTTP 406 and no API key was available for live
-catalog verification; the named regressions pass against mocked provider responses.
+Windows x64 with installed Edge/Chrome is required for browser downloads. The
+Windows package bundles Python and the browser driver; no separate browser is
+installed automatically. Website format or verification changes can pause jobs.
+Lazer's retained hash-store files cause conservative duplicate skips; queued import
+is not proof of active database membership. Confirm imports in the game.
 
-Download osu-life-hacks-windows.zip for the standalone Windows application.
-Legacy updater aliases, wheels, source package and SHA256 checksums are included.
-Game-reader compatibility is unchanged: Stable signatures and lazer 2026.1005.0
-x64 still need target-installation validation.
+Tests use isolated libraries and routed browser fixtures. No live sign-in,
+account quota or game import was exercised against a player's library.
 
 ©Hky Sigh, 2026

@@ -22,6 +22,7 @@ These internal readers need live validation on the target installation; see
 | **r** / **d** | Connect Last.fm / optional Discogs token |
 | **b** | Toggle Windows startup |
 | **u** | Update and restart |
+| **m** | Beatmap downloads: start, filters, pause, resume, cancel |
 | **q** / **x** | Hide console / stop app |
 
 All controls appear on the normal welcome screen. In a foreground `watch`
@@ -40,7 +41,17 @@ queues, history and preferences survive upgrades.
 No audio capture, analytics or gameplay uploads. See [privacy](docs/privacy.md),
 [background operation](docs/background.md), and [updates](docs/updates.md).
 
+**Bulk beatmaps:** press **m**, choose Stable/lazer as the destination, sign in once
+in the dedicated Edge/Chrome window, then start. Defaults to 25 recently ranked
+osu!standard beatmapsets, newest first, with all available media. Filters include
+mode, genre, category, ranked dates, count, length and host mapper. Mode and length
+must match the same difficulty; full sets may include other difficulties/modes.
+Existing libraries and progress are preserved. Shared pacing and cooldowns reduce
+request volume but cannot guarantee avoidance of account-wide server limits.
+See [setup, recovery and limitations](docs/downloads.md).
+
 For development: `python -m pip install -e ".[test]"`, then `python -m pytest`.
 The command is `osu-life-hacks`; `python -m osu_scrobbler` remains supported.
+Maintainers: [push and publish a tested release](docs/publishing.md).
 
 ©Hky Sigh, 2026

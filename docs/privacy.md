@@ -14,6 +14,8 @@ Dependencies retain their own licenses.
 | Lookup cache | At most 256 entries; successful matches expire after seven days, ambiguous/missing matches after one. Expired entries are removed when the app opens or accesses the cache. Corrections remain until cleared. |
 | Last.fm credentials | API key/secret and session key in the OS vault. No password, osu! credentials or plaintext credential file. |
 | Updates | Public version/digest and current/previous program environments in the local data directory. No user identity, music history or credentials sent with release checks. |
+| Beatmap downloads (opt-in) | Filters, library metadata paths/IDs, queue, receipts and last successful set in a separate SQLite checkpoint. Shared account ID/request timestamps retain seven days of recent requests and ongoing cooldowns. Completed set IDs remain until explicitly removed with app data. No browser tokens in these databases. |
+| Downloader sign-in | Dedicated Edge/Chrome profile with normal Windows-protected cookie/session storage, separate from your ordinary browser and the game. Passwords/tokens are never entered into the terminal, exported to plaintext JSON or logged. |
 
 **Online requests:** MusicBrainz, Discogs and Last.fm metadata receive song title/artist searches,
 optional release hints and music identifiers over HTTPS. Optional Discogs tokens
@@ -40,7 +42,17 @@ There is no external game-reader process, installation, network feed or offset d
 **Your controls:** Background startup requires choosing **y** in first-run setup,
 pressing **b** in START. **b** toggles startup; **x** stops the monitor;
 **Exit** stops it immediately. No administrator rights, Windows service, global
-keyboard hook, recursive file scan or changes to osu! are used.
+keyboard hook or game executable changes are used. The optional downloader scans
+only configured/detected library roots and pending archives, read-only; it never
+opens or modifies lazer's Realm database. There is no disk-wide recursive search.
+
+The optional maps feature sends filters/beatmapset IDs to osu!web and follows the
+server's normal full-media download redirect. osu! sees the signed-in account/IP
+and applies its own limits. Hiding the terminal keeps the worker running; maps
+pause/cancel, tray Exit and app stop pause it safely. Checkpoints, the browser
+profile and request/cooldown history are independent of Last.fm authorization and
+are deliberately retained by privacy --clear-cache. Sign out/revoke the dedicated
+osu! session through the browser/website when needed. See [downloads](downloads.md).
 
 Run `privacy` to see the local data directory. After stopping the tray/watcher,
 run `privacy --clear-cache` to remove lookup cache and old activity logs while

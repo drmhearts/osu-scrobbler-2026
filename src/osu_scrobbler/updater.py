@@ -398,6 +398,8 @@ class Updater:
 
 
 async def stop_running(directory):
+    from .downloads.service import pause_active, worker_active
+    pause_active(directory)
     from .ipc import send_command
     for control in ("tray-control.json", "control.json"):
         try:
@@ -408,8 +410,11 @@ async def stop_running(directory):
     while time.monotonic() < deadline:
         try:
             with WatchLock(directory, "tray.lock"), WatchLock(directory):
-                return
+                if not worker_active():
+                    return
         except RuntimeError:
+            await asyncio.sleep(0.25)
+        else:
             await asyncio.sleep(0.25)
     raise UpdateError("The app is still stopping. Try START.cmd again.")
 

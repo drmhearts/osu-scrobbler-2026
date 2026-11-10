@@ -17,7 +17,7 @@ from .lastfm import CredentialStore, Credentials, LastFmClient
 
 def parser():
     result = argparse.ArgumentParser(prog="osu-life-hacks",
-        description="osu! life hacks: osu! → MusicBrainz + Discogs → Last.fm", epilog="©Hky Sigh, 2026")
+        description="osu! life hacks: Last.fm scrobbling, release matching and beatmap downloads", epilog="©Hky Sigh, 2026")
     result.add_argument("--data-dir", type=Path, default=default_data_dir(), help="Private configuration/history directory")
     result.add_argument("--json", action="store_true", help="Show structured output instead of short terminal messages")
     result.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
@@ -26,6 +26,8 @@ def parser():
     auth.add_argument("--session", action="store_true", help="Securely enter an already authorized session key")
     discogs = commands.add_parser("discogs", help="Configure optional Discogs release search")
     discogs.add_argument("discogs_action", choices=["auth", "status", "remove"])
+    from .downloads.commands import add_parser
+    add_parser(commands)
     watch = commands.add_parser("watch", help="Start the sole gameplay watcher and local command server")
     watch.add_argument("--dry-run", action="store_true", help="Preview submissions; never write to Last.fm")
     watch.add_argument("--fixture", type=Path, help="Simulated telemetry replay; requires --dry-run and makes no MusicBrainz requests")
@@ -115,6 +117,9 @@ async def execute(args):
     directory = args.data_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
     command = args.command
+    if command == "maps":
+        from .downloads.commands import execute as downloads_execute
+        return await downloads_execute(args)
     if command == "discogs":
         from .discogs import DiscogsTokenStore, configured_token
         store = DiscogsTokenStore()
