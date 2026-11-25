@@ -27,9 +27,9 @@ async def check(directory):
         raise RuntimeError("Installed launch script failed")
     try:
         health = await wait_for_tray(directory, timeout=35)
-        assert health["ready"] is True and health["status"] == "Waiting for osu!"
-        # No first-time authorization, osu!, or Last.fm contact is needed
-        # to verify the actual Windows notification icon and local IPC.
+        assert health["ready"] is True and health["status"] in {"Waiting for osu!", "Watching osu!"}
+        # A developer may have osu! open while building locally. Neither state
+        # requires first-time authorization or Last.fm contact for this check.
         response = await send_command(directory, {"command": "quit"}, control_name="tray-control.json")
         assert "stopped" in response["message"]
     except Exception as error:

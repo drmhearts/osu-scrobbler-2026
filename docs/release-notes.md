@@ -1,11 +1,9 @@
-# osu! life hacks 0.9.2
+# osu! life hacks 0.9.3
 
-- Fixed the maps window closing as soon as a download batch started from the tray.
-  It now stays open and switches to the live progress view.
-- The start flow checks installed maps before opening the browser. If osu! sign-in
-  is needed, the terminal waits while you complete it in Edge or Chrome.
-- Library scan and download startup failures now show a useful local error instead
-  of silently closing the browser or masking the reason. Saved jobs and libraries
-  remain intact.
+- Replaced the Windows package readme with a plain README.txt.
+- Added UNINSTALL.cmd to stop the app, remove Windows startup and cached runtimes,
+  and leave map libraries and saved app data intact.
+- Releases now publish the current Windows ZIP, current wheel and checksums only.
+  GitHub's automatic source downloads remain available.
 
 ©Hky Sigh, 2026

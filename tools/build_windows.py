@@ -11,7 +11,6 @@ import sys
 import tempfile
 import tomllib
 from zipfile import ZipFile, ZIP_DEFLATED
-from compat_release import legacy_bundle
 
 
 def build(output):
@@ -47,7 +46,7 @@ def build(output):
         tools = package / "app/tools"
         tools.mkdir()
         shutil.copyfile(root / "tools/start_windows.py", tools / "start_windows.py")
-        for filename in ("START.cmd", "README.md", "LICENSE"):
+        for filename in ("START.cmd", "UNINSTALL.cmd", "README.txt", "LICENSE"):
             shutil.copyfile(root / filename, package / filename)
         shutil.copytree(root / 'docs', package / 'docs')
         # Run the actual copied interpreter with no PATH Python and no user-site.
@@ -91,15 +90,6 @@ def build(output):
         checksums = output / "SHA256SUMS.txt"
         with checksums.open("a", encoding="utf-8") as handle:
             handle.write(f"{hashlib.sha256(asset.read_bytes()).hexdigest()}  {asset.name}\n")
-            legacy = output / 'osu-scrobbler-windows.zip'
-            compatibility = Path(temporary) / 'legacy-dependencies'
-            subprocess.run([sys.executable, '-m', 'pip', '--disable-pip-version-check', 'install',
-                '--no-compile', '--no-deps', '--only-binary=:all:', '--target', str(compatibility),
-                'websockets>=14,<17'], check=True)
-            extra_files = {'Lib/site-packages/' + path.relative_to(compatibility).as_posix(): path.read_bytes()
-                           for path in compatibility.rglob('*') if path.is_file()}
-            legacy_bundle(asset, legacy, extra_files)
-            handle.write(f"{hashlib.sha256(legacy.read_bytes()).hexdigest()}  {legacy.name}\n")
         print(f"Windows x64 runtime built and verified: {asset.name} ({asset.stat().st_size} bytes)")
 
 

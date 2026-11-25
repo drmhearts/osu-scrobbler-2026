@@ -23,19 +23,16 @@ Advanced commands: `update --check`, `update --rollback` (stop the app first),
 `config set auto_update false`. Rollback also disables automatic checks.
 
 
-The application remains on the existing release repository, but current artifacts
-use `osu-life-hacks` names. Transition releases also publish a legacy wheel and
-Windows ZIP with identical program code and legacy archive/package identities.
-`tools/compat_release.py` regenerates wheel RECORD hashes and the legacy portable
-manifest, allowing pre-rename validators to install the new runtime. Current
-updaters select the new names. Never replace the repository URL with an invented
-repository name or remove integrity checks as part of a rename.
+The application remains on the existing release repository. Releases include
+only the current `osu-life-hacks` wheel, Windows ZIP and checksums; GitHub adds
+its usual source archives. Installations with a pre-rename updater that only
+accepts `osu-scrobbler` asset names must download and extract a current Windows
+ZIP manually. Current updaters select the new names.
 
-The old updater's smoke check unconditionally imports `websockets`. Only the
-legacy transition wheel/ZIP therefore includes that library (unused by the new
-application); the normal `osu-life-hacks` wheel/ZIP does not. Neither variant
-includes, installs, launches or contacts tosu. Remove the legacy aliases and this
-compatibility dependency once pre-0.5 updaters are no longer supported.
+To uninstall, run UNINSTALL.cmd from the extracted Windows ZIP. It stops the
+app, removes its startup entry and cached runtimes, then tells you which
+extracted program folder to delete. It preserves settings, credentials,
+download history and osu! libraries.
 
 The import package, data directory, credential service and startup entry identity
 remain stable. These internal compatibility names are intentional. The old reader

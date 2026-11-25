@@ -45,6 +45,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >-
           gh release create "$RELEASE_TAG"
-          dist/*.whl dist/*.zip dist/SHA256SUMS.txt
+          dist/osu_life_hacks-*.whl dist/osu-life-hacks-windows.zip dist/SHA256SUMS.txt
           --verify-tag --title "osu! life hacks $RELEASE_TAG"
           --notes-file docs/release-notes.md --generate-notes

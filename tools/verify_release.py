@@ -13,8 +13,7 @@ def verify(directory, tag):
     number = tomllib.loads((root / "pyproject.toml").read_text("utf-8"))["project"]["version"]
     if tag != "v" + number:
         raise RuntimeError("Release tag does not match package version")
-    expected = {f"osu_life_hacks-{number}-py3-none-any.whl", "osu-life-hacks-windows.zip", "osu-life-hacks-windows-source.zip"}
-    expected.update({f"osu_scrobbler-{number}-py3-none-any.whl", "osu-scrobbler-windows.zip"})
+    expected = {f"osu_life_hacks-{number}-py3-none-any.whl", "osu-life-hacks-windows.zip"}
     rows = [line.split() for line in (directory / "SHA256SUMS.txt").read_text("utf-8").splitlines()]
     if len(rows) != len(expected) or {row[1] for row in rows if len(row) == 2} != expected:
         raise RuntimeError("Release checksum list is incomplete")
@@ -25,6 +24,9 @@ def verify(directory, tag):
         manifest = json.loads(archive.read("osu-life-hacks/app/runtime/portable.json"))
         if manifest["name"] != "osu-life-hacks" or manifest["version"] != number:
             raise RuntimeError("Windows download version is incorrect")
+        for name in ("README.txt", "UNINSTALL.cmd", "START.cmd"):
+            if not archive.getinfo("osu-life-hacks/" + name).file_size:
+                raise RuntimeError("Windows download is missing " + name)
     print(f"Verified all assets for {tag}")
 
 

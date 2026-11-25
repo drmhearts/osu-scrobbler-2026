@@ -41,7 +41,7 @@ function global:git {
 function global:TestPython {
     param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Parameters)
     $global:LASTEXITCODE = 0
-    if ($Parameters[0] -eq '-c') { return '0.9.2' }
+    if ($Parameters[0] -eq '-c') { return '0.9.3' }
     if ($Parameters[0] -eq '-m' -and $Parameters[1] -eq 'pytest') {
         if ($global:scenario -eq 'tests_fail') { $global:LASTEXITCODE = 1 }
         return
@@ -56,4 +56,4 @@ function global:TestPython {
     pushes = recorded.read_text(encoding="utf-8-sig").splitlines() if recorded.exists() else []
     assert len(pushes) == push_count
     if success:
-        assert pushes == ["push origin HEAD:main", "push origin HEAD:refs/heads/release/v0.9.2"]
+        assert pushes == ["push origin HEAD:main", "push origin HEAD:refs/heads/release/v0.9.3"]

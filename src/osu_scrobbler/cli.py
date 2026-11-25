@@ -62,6 +62,7 @@ def parser():
     retry.add_argument("id")
     retry.add_argument("--accept-duplicate-risk", action="store_true", help="Allow uncertain requests to be retried; Last.fm may already have accepted them")
     commands.add_parser("quit", help="Stop the watcher")
+    commands.add_parser("uninstall", help="Remove this profile's startup and cached Windows runtime; keep saved data")
     tray = commands.add_parser("tray", help="Run the Windows tray monitor; starts watching when osu! opens")
     startup = tray.add_mutually_exclusive_group()
     startup.add_argument("--install", action="store_true", help="Enable tray monitoring at sign-in and launch it now")
@@ -140,6 +141,9 @@ async def execute(args):
         from .setup import launch
         await launch(directory, skip_update_check=args.skip_update_check)
         return None
+    if command == "uninstall":
+        from .uninstall import uninstall
+        return await uninstall(directory)
     if command == "setup":
         from .setup import first_run
         from .updater import startup, stop_running

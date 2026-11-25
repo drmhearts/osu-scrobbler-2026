@@ -53,9 +53,9 @@ def repair_launcher(directory, *, root=None, parent_executable=None, assets=None
             previous = {}
         repaired_legacy = False
         installed = {}
-        for target, asset in (("START.cmd", "START.cmd"), ("tools/start_windows.py", "start_windows.py"), ("README.md", "README.md")):
+        for target, asset in (("START.cmd", "START.cmd"), ("tools/start_windows.py", "start_windows.py"), ("README.txt", "README.txt")):
             path = root / target
-            if target in {"START.cmd", "README.md"} and root.name == "app" and not path.exists():
+            if target in {"START.cmd", "README.txt"} and root.name == "app" and not path.exists():
                 path = root.parent / target
             if path.is_symlink() or not path.is_file():
                 continue
@@ -67,7 +67,7 @@ def repair_launcher(directory, *, root=None, parent_executable=None, assets=None
             if old not in (*originals, previous.get(target), digest):
                 continue  # Preserve user-modified launchers.
             if old != digest:
-                repaired_legacy |= target != "README.md" and old in originals
+                repaired_legacy |= target != "README.txt" and old in originals
                 legacy_detected |= repaired_legacy
                 temporary = path.with_suffix(path.suffix + ".updating")
                 temporary.write_bytes(content)

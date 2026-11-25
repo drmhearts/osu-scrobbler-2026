@@ -1,4 +1,4 @@
-"""Build the public wheel/source assets for a versioned GitHub release."""
+"""Build the current wheel and checksums for a versioned GitHub release."""
 
 import argparse
 import ast
@@ -7,8 +7,6 @@ from pathlib import Path
 import subprocess
 import sys
 import tomllib
-from zipfile import ZipFile, ZIP_DEFLATED, ZipInfo
-from compat_release import legacy_wheel
 
 
 def main():
@@ -31,27 +29,11 @@ def main():
     package = output / f"osu_life_hacks-{version}-py3-none-any.whl"
     if not package.is_file():
         raise RuntimeError("Expected universal release wheel was not built")
-    files = [root / name for name in ("README.md", "LICENSE", "pyproject.toml", "START.cmd")]
-    files.append(root / "tools/start_windows.py")
-    for directory in ("src/osu_scrobbler", "docs"):
-        files.extend(path for path in (root / directory).rglob("*")
-                     if path.is_file() and not path.is_symlink() and "__pycache__" not in path.parts
-                     and (path.suffix in {".py", ".json", ".cmd", ".md", ".ps1"} or path.name.endswith("LICENSE")))
-    source = output / "osu-life-hacks-windows-source.zip"
-    with ZipFile(source, "w", ZIP_DEFLATED) as archive:
-        for path in sorted(files):
-            relative = path.relative_to(root).as_posix()
-            if relative not in {"START.cmd", "README.md", "LICENSE"} and not relative.startswith("docs/"):
-                relative = "app/" + relative
-            info = ZipInfo("osu-life-hacks/" + relative)
-            info.compress_type = ZIP_DEFLATED
-            info.external_attr = 0o100644 << 16
-            archive.writestr(info, path.read_bytes())
-    legacy = output / f"osu_scrobbler-{version}-py3-none-any.whl"
-    legacy_wheel(package, legacy, version)
-    checksums = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}" for path in (package, legacy, source)]
+    # The Windows ZIP carries the readme and launcher. GitHub supplies source
+    # archives automatically; do not publish duplicate or legacy assets.
+    checksums = [f"{hashlib.sha256(package.read_bytes()).hexdigest()}  {package.name}"]
     (output / "SHA256SUMS.txt").write_text("\n".join(checksums) + "\n", "utf-8")
-    print(f"Built release {version}: wheel, Windows source ZIP, and SHA256SUMS.txt")
+    print(f"Built release {version}: wheel and SHA256SUMS.txt")
 
 
 if __name__ == "__main__":
