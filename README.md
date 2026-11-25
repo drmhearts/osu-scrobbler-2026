@@ -53,6 +53,8 @@ the current form with saved settings intact.
   difficulties. Jobs save their queue, completed IDs and cooldowns; pause, cancel
   and restart can be resumed. The terminal shows a live bar for completed sets and
   an activity indicator while an archive transfers. See [download setup and filters](docs/downloads.md).
+  Starting from the tray keeps the terminal open for sign-in and switches to the
+  live progress view; a library scan error is shown before the browser opens.
 - **Collections:** When starting a batch, optionally choose an existing or new
   collection name. The app records which downloaded sets still need import and
   collection assignment. Add them through the game's Manage Collections UI after

@@ -10,7 +10,7 @@ from ..config import WatchLock
 from ..terminal import color
 from .library import discover, scan_all, imported_stable_ids
 from .limiter import Limiter
-from .models import Destination, DownloadError, Filters, GENRES, MODES, STATUSES
+from .models import AuthRequired, Destination, DownloadError, Filters, GENRES, MODES, STATUSES
 from .service import import_archive, launch_worker, shared_root, worker, worker_active
 from .store import Store
 
@@ -151,6 +151,32 @@ def count_warning(limit, limiter):
             "account independently; progress and cooldown are saved. Continuing.")
 
 
+def check_libraries(store, destination):
+    libraries = [destination, *[Destination(**value) for value in store.preference("libraries", [])], *discover()]
+    return scan_all(libraries, cache=store, pending=(store.root / "lazer-inbox",))
+
+
+async def ensure_signed_in(directory, prompt, output):
+    """Keep the visible terminal and browser together during first sign-in."""
+    from .browser import BrowserSource
+    with WatchLock(shared_root(), "worker.lock"):
+        limiter = Limiter(shared_root())
+        try:
+            until = limiter.ready_at("login", "connect")
+            if until > limiter.clock():
+                when = datetime.fromtimestamp(until, timezone.utc).isoformat()
+                raise DownloadError("Shared osu! cooldown/pacing is active until " + when + ". No browser request sent.")
+            limiter.reserve("login", kind="connect")
+            async with BrowserSource(Path(directory) / "beatmap-downloads") as source:
+                try:
+                    await source.connect()
+                except AuthRequired:
+                    output("Sign in to osu! in the Edge/Chrome window. This terminal will wait for you.")
+                    await source.login(prompt)
+        finally:
+            limiter.close()
+
+
 async def execute(args):
     action = args.maps_action
     if action == "menu":
@@ -249,6 +275,7 @@ async def execute(args):
             if worker_active():
                 raise DownloadError("A maps job/sign-in is already active. Pause/cancel it first; no second downloader started.")
             destination = configure(store, args.client, args.root, args.exe)
+            check_libraries(store, destination)
             values = store.preference("filters", {})
             values.update({field.name: getattr(args, field.name) for field in fields(Filters) if getattr(args, field.name, None) is not None})
             filters = Filters(**values).validate()
@@ -459,7 +486,7 @@ async def _collection_prompt(store, output, prompt):
     return plan
 
 
-async def menu(directory, *, output=print, prompt=ask):
+async def menu(directory, *, output=print, prompt=ask, embedded=False):
     """Compact normal terminal menu; no extra server or GUI framework."""
     from ..cli import parser
     while True:
@@ -493,6 +520,8 @@ async def menu(directory, *, output=print, prompt=ask):
                 continue
             if choice == "1":
                 plan = await _collection_prompt(store, output, prompt)
+                output("Checking installed maps before opening the download browser…")
+                check_libraries(store, configure(store))
             else:
                 plan = None
         except MenuBack:
@@ -506,6 +535,8 @@ async def menu(directory, *, output=print, prompt=ask):
         action = {"1": "start", "3": "pause", "4": "resume", "5": "cancel", "6": "login", "8": "import", "9": "scan"}.get(choice)
         if action:
             try:
+                if action == "start":
+                    await ensure_signed_in(directory, prompt, output)
                 argv = ["--data-dir", str(directory), "maps", action]
                 if action == "start" and plan:
                     argv += ["--collection", plan["name"]]
@@ -515,7 +546,11 @@ async def menu(directory, *, output=print, prompt=ask):
                 result = await execute(args)
                 output(result["message"])
                 if action in {"start", "resume"}:
-                    return  # Main terminal's live feed reports subsequent progress.
+                    if not embedded:
+                        output("Opening the live view. Press m for maps controls or q to hide it.")
+                        from ..console import show_console
+                        await show_console(Path(directory), output=output)
+                    return
             except (DownloadError, OSError, RuntimeError, ValueError) as error:
                 output(str(error) if isinstance(error, DownloadError) else "Maps action unavailable. Progress retained.")
         else:

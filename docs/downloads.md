@@ -7,9 +7,12 @@ from the tray. The app chooses a detected lazer destination by default; choose
 **7 destination** to change it. The prompt accepts a shown number, `custom`, or
 `current`. Custom setup first asks you to type `lazer` or `stable`, then separately
 asks for a folder path. Type `help` during any maps prompt to keep your place,
-or `back` to leave that form without changing saved settings. Choose **6 sign in**. Sign in yourself in
-the dedicated Edge/Chrome window, including any browser verification. Return to
-the terminal and press Enter. Choose **1 start recent**.
+or `back` to leave that form without changing saved settings. Choose **1 start
+recent**. The tool first checks existing maps. It then reuses a signed-in osu!
+session or keeps the terminal open while you sign in and complete verification in
+the dedicated Edge/Chrome window. You can also choose **6 sign in** separately.
+After starting from the tray, the same terminal switches to a live progress view;
+press **m** for maps controls or **q** to hide it.
 
 The default is **25 recently ranked osu!standard beatmapsets, newest first**.
 Closing/hiding the console does not stop the worker. The terminal shows a live

@@ -1,13 +1,11 @@
-# osu! life hacks 0.9.1
+# osu! life hacks 0.9.2
 
-- Tidied the beatmap download menu into clear action groups, with color for the
-  heading, job state, and progress.
-- Added a live terminal progress bar for completed beatmapsets. The current
-  transfer has an activity indicator while its total byte size is unknown.
-- Kept the job count, queue, last saved set, pause/resume controls, and plain text
-  display when terminal color is unavailable or disabled.
-
-The bar counts completed full beatmapsets, not individual difficulties or bytes.
-Downloads continue to use the same saved checkpoints and conservative pacing.
+- Fixed the maps window closing as soon as a download batch started from the tray.
+  It now stays open and switches to the live progress view.
+- The start flow checks installed maps before opening the browser. If osu! sign-in
+  is needed, the terminal waits while you complete it in Edge or Chrome.
+- Library scan and download startup failures now show a useful local error instead
+  of silently closing the browser or masking the reason. Saved jobs and libraries
+  remain intact.
 
 ©Hky Sigh, 2026

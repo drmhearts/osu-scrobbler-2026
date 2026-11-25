@@ -103,7 +103,7 @@ def scan(destination, *, cache=None, pending=()):
                 cache.put(key, stamp, found)
             ids.update(found)
         except (OSError, ValueError, DownloadError):
-            raise DownloadError("An existing library/archive file could not be checked. Library left unchanged; fix access before resuming.") from None
+            raise DownloadError(f"Cannot check existing map/archive: {path}. Library unchanged; fix or move that file before resuming.") from None
     return ids
 
 

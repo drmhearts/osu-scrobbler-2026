@@ -63,7 +63,7 @@ async def view_command(directory, key):
         return {"message": help_text(topic)}
     if key == "m":
         from .downloads.commands import menu
-        await menu(directory)
+        await menu(directory, embedded=True)
         return None
     if key == "t":
         return await threshold_prompt(directory)

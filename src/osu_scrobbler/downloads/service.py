@@ -212,7 +212,9 @@ class Engine:
             store.update(job_id, failures=failures, state="cooldown", message=str(error) + " Cooldown until " + until)
         except AuthRequired as error:
             store.update(job_id, state="auth_required", message=str(error))
-        except (DownloadError, OSError):
+        except DownloadError as error:
+            store.update(job_id, state="error", message=str(error) + " Progress retained; use maps resume after correcting it.")
+        except OSError:
             store.update(job_id, state="error", message="Download or placement failed. Library unchanged; valid staging and queue retained. Check destination, sign-in and disk space.")
 
 
@@ -244,6 +246,8 @@ async def worker(directory, job_id, *, source_factory=None, shared=None):
             await Engine(store, limiter, source).run(job_id)
     except AuthRequired as error:
         store.update(job_id, state="auth_required", message=str(error))
+    except DownloadError as error:
+        store.update(job_id, state="error", message=str(error) + " Progress retained; use maps resume after correcting it.")
     except Exception:
         store.update(job_id, state="error", message="Cannot start the download browser/worker. Install Edge or Chrome, close this tool's old browser, then resume. Progress retained.")
     finally:

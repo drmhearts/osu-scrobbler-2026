@@ -8,7 +8,7 @@ from osu_scrobbler.cli import parser, execute
 from osu_scrobbler.downloads import commands
 from osu_scrobbler.downloads.commands import collection_guidance, count_warning, menu, progress_bar, progress_notice
 from osu_scrobbler.downloads.limiter import Limiter
-from osu_scrobbler.downloads.models import Destination, DownloadError, Filters
+from osu_scrobbler.downloads.models import AuthRequired, Destination, DownloadError, Filters
 from osu_scrobbler.downloads.store import Store
 from osu_scrobbler.welcome import welcome
 
@@ -80,11 +80,15 @@ async def test_collection_choice_is_remembered_and_can_be_changed(tmp_path, monk
         called.append(args)
         return {"message": "started"}
     monkeypatch.setattr(commands, "execute", fake_execute)
+    monkeypatch.setattr(commands, "check_libraries", lambda *args: set())
+    async def signed_in(*args):
+        return None
+    monkeypatch.setattr(commands, "ensure_signed_in", signed_in)
     prompts, output = [], []
-    await menu(tmp_path, output=output.append,
+    await menu(tmp_path, output=output.append, embedded=True,
                prompt=await scripted(["1", "yes", "existing", "Favorites"], prompts))
     assert called[-1].collection == "Favorites" and not called[-1].new_collection
-    await menu(tmp_path, output=output.append,
+    await menu(tmp_path, output=output.append, embedded=True,
                prompt=await scripted(["1", "", "new", "New maps"], prompts))
     assert called[-1].collection == "New maps" and called[-1].new_collection
     saved = Store(tmp_path / "beatmap-downloads")
@@ -92,6 +96,71 @@ async def test_collection_choice_is_remembered_and_can_be_changed(tmp_path, monk
         assert saved.preference("collection") == {"enabled": True, "kind": "new", "name": "New maps"}
     finally:
         saved.close()
+
+
+async def test_start_keeps_terminal_open_for_sign_in_then_live_progress(tmp_path, monkeypatch):
+    stable = tmp_path / "Stable"
+    (stable / "Songs").mkdir(parents=True)
+    store = Store(tmp_path / "beatmap-downloads")
+    try:
+        commands.configure(store, "stable", stable)
+    finally:
+        store.close()
+    monkeypatch.setattr(commands, "discover", lambda: [])
+    monkeypatch.setattr(commands, "shared_root", lambda: tmp_path / "shared")
+    events = []
+
+    class Browser:
+        def __init__(self, directory):
+            events.append("browser-open")
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, *args):
+            events.append("browser-close")
+        async def connect(self):
+            raise AuthRequired("Sign in")
+        async def login(self, prompt):
+            events.append("sign-in-prompt")
+            await prompt("Sign in, then press Enter: ")
+
+    from osu_scrobbler.downloads import browser
+    monkeypatch.setattr(browser, "BrowserSource", Browser)
+    async def fake_execute(args):
+        events.append("worker-start")
+        return {"message": "Batch started"}
+    monkeypatch.setattr(commands, "execute", fake_execute)
+    from osu_scrobbler import console
+    async def fake_console(directory, output):
+        events.append("live-view")
+    monkeypatch.setattr(console, "show_console", fake_console)
+    prompts, output = [], []
+    await menu(tmp_path, output=output.append,
+               prompt=await scripted(["1", "no", ""], prompts))
+    assert events == ["browser-open", "sign-in-prompt", "browser-close", "worker-start", "live-view"]
+    assert any("terminal will wait" in line for line in output)
+    assert any("Sign in, then press Enter" in item for item in prompts)
+
+
+async def test_bad_library_stays_in_menu_without_opening_browser(tmp_path, monkeypatch):
+    stable = tmp_path / "Stable"
+    (stable / "Songs").mkdir(parents=True)
+    store = Store(tmp_path / "beatmap-downloads")
+    try:
+        commands.configure(store, "stable", stable)
+    finally:
+        store.close()
+    monkeypatch.setattr(commands, "discover", lambda: [])
+    def broken_scan(*args):
+        raise DownloadError("Cannot check existing map/archive: broken.osz")
+    monkeypatch.setattr(commands, "check_libraries", broken_scan)
+    async def must_not_open(*args):
+        pytest.fail("Browser must not open when library preflight fails")
+    monkeypatch.setattr(commands, "ensure_signed_in", must_not_open)
+    prompts, output = [], []
+    await menu(tmp_path, output=output.append,
+               prompt=await scripted(["1", "no", "0"], prompts))
+    assert any("broken.osz" in line for line in output)
+    assert prompts[-1].startswith("Maps >")
 
 
 def test_count_warning_uses_shared_history_without_rejecting_large_batches(tmp_path):
