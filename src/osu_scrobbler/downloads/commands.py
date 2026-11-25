@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..config import WatchLock
+from ..terminal import color
 from .library import discover, scan_all, imported_stable_ids
 from .limiter import Limiter
 from .models import Destination, DownloadError, Filters, GENRES, MODES, STATUSES
@@ -76,13 +77,41 @@ def describe(store, job_id=None):
         job = store.job(job_id)
     except DownloadError:
         return {"message": "Maps: no batch yet. Choose a destination, sign in once, then start recently ranked sets."}
-    root = job["destination"]
-    text = (f"Maps #{job['id']}: {job['state']} | {job['count']}/{job['filters']['limit']} sets | "
-            f"{job['pending']} pending | {root['client']}\n"
-            f"Last saved: {job['last_id'] or 'none'}. {job['message']}")
+    text = "\n".join(job_summary(job))
     if job["collection"]:
         text += f"\nCollection '{job['collection']['name']}': {job['collection_pending']} sets need import/assignment in the game. Use maps collection."
     return {"message": text, "download_job": job, "receipts": store.receipts()}
+
+
+def progress_bar(count, total, width=18):
+    """Exact completed-set progress; no invented byte percentage."""
+    filled = min(width, max(0, count * width // total))
+    percent = min(100, max(0, count * 100 // total))
+    return f"[{'█' * filled}{'·' * (width - filled)}] {count}/{total} sets  {percent}%"
+
+
+def job_summary(job):
+    state = job["state"].replace("_", " ").title()
+    if state == "Running" and job["message"].startswith("Downloading"):
+        state = "Downloading"
+    tone = "92" if state == "Complete" else "93" if state in {"Waiting", "Cooldown", "Paused", "Auth Required"} else "91" if state in {"Error", "Cancelled"} else "96"
+    lines = [f"Batch #{job['id']}  {color(state, tone)}  ·  {job['destination']['client']}",
+             color(progress_bar(job["count"], job["filters"]["limit"]), "96")]
+    detail = job["message"] or "Ready."
+    lines.append(detail)
+    if job["last_id"] or job["pending"]:
+        lines.append(f"Last saved: {job['last_id'] or 'none'}  ·  {job['pending']} waiting in queue")
+    return lines
+
+
+def compact_progress(job, tick=None):
+    state = job["state"]
+    detail = job["message"] or state.replace("_", " ")
+    if tick is not None and state in {"scanning", "running", "waiting"}:
+        detail = "|/-\\"[tick % 4] + " " + detail
+    if len(detail) > 34:
+        detail = detail[:31].rstrip() + "…"
+    return color(f"Maps  {progress_bar(job['count'], job['filters']['limit'], 14)}  ·  {detail}", "96")
 
 
 def collection_plan(name, kind="existing"):
@@ -436,12 +465,17 @@ async def menu(directory, *, output=print, prompt=ask):
     while True:
         store = Store(Path(directory) / "beatmap-downloads")
         try:
-            output("\nBeatmap downloads — full archives, including available media")
+            output("\n" + color("BEATMAP DOWNLOADS", "95"))
+            output(color("─" * 55, "90"))
             output(describe(store)["message"])
-            output("1 start recent  2 filters  3 pause  4 resume  5 cancel")
-            output("6 sign in  7 destination  8 import saved  9 scan  c collection  h help  0 back")
-            output("Full sets may include other modes/difficulties. Limits count sets.")
-            choice = (await prompt("Maps > Type a shown number/letter, help [topic], or 0 to go back: ")).strip().lower()
+            output("")
+            output(color("Download", "95") + "   1 Start recent   2 Filters     3 Pause")
+            output("           4 Resume         5 Cancel")
+            output(color("Setup", "95") + "      6 Sign in        7 Destination")
+            output(color("Library", "95") + "    8 Import saved   9 Scan        c Collection")
+            output(color("Other", "95") + "      h Help          0 Back")
+            output(color("Count = full beatmapsets; other modes may be included.", "90"))
+            choice = (await prompt("Maps > Choose a key, or type help [topic]: ")).strip().lower()
             if choice in {"0", "q", ""}:
                 return
             if choice in {"h", "help"} or choice.startswith("help "):
@@ -488,7 +522,7 @@ async def menu(directory, *, output=print, prompt=ask):
             output("Type a shown command, h for help, or 0 to go back.")
 
 
-def progress_notice(directory):
+def progress_notice(directory, *, tick=None):
     import sqlite3
     path = Path(directory) / "beatmap-downloads"
     if not (path / "downloads.sqlite3").is_file():
@@ -498,6 +532,9 @@ def progress_notice(directory):
     except sqlite3.Error:
         return "Maps checkpoint unavailable; progress is retained. Inspect maps status before resuming."
     try:
-        return describe(store)["message"]
+        try:
+            return compact_progress(store.job(), tick=tick)
+        except DownloadError:
+            return None
     finally:
         store.close()

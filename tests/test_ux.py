@@ -6,7 +6,7 @@ import pytest
 
 from osu_scrobbler.cli import parser, execute
 from osu_scrobbler.downloads import commands
-from osu_scrobbler.downloads.commands import collection_guidance, count_warning, menu
+from osu_scrobbler.downloads.commands import collection_guidance, count_warning, menu, progress_bar, progress_notice
 from osu_scrobbler.downloads.limiter import Limiter
 from osu_scrobbler.downloads.models import Destination, DownloadError, Filters
 from osu_scrobbler.downloads.store import Store
@@ -174,3 +174,21 @@ def test_old_checkpoint_schema_gains_collection_tables_without_losing_history(tm
         assert store.db.execute("SELECT name FROM sqlite_master WHERE name='collection_members'").fetchone()
     finally:
         store.close()
+
+
+def test_progress_bar_uses_completed_sets_and_saved_job_state(tmp_path):
+    assert progress_bar(0, 100, width=10) == "[··········] 0/100 sets  0%"
+    assert progress_bar(25, 100, width=10) == "[██········] 25/100 sets  25%"
+    assert progress_bar(10**50, 10**50, width=10).endswith("100%")
+    root = tmp_path / "lazer"
+    (root / "files").mkdir(parents=True)
+    store = Store(tmp_path / "beatmap-downloads")
+    try:
+        job = store.create(Filters(limit=100), Destination("lazer", str(root)))
+        store.update(job, state="running", count=25, message="Downloading beatmapset 123 (full media)")
+    finally:
+        store.close()
+    notice = progress_notice(tmp_path, tick=0)
+    assert "25/100 sets" in notice and "25%" in notice
+    assert "Downloading beatmapset 123" in notice
+    assert progress_notice(tmp_path, tick=1) != notice  # Live indicator while transfer size is unknown.

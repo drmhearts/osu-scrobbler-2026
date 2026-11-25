@@ -51,7 +51,8 @@ the current form with saved settings intact.
   osu!standard beatmapsets, newest first. Count is a positive whole number of
   **beatmapsets**, with no fixed maximum. A full set may include other modes or
   difficulties. Jobs save their queue, completed IDs and cooldowns; pause, cancel
-  and restart can be resumed. See [download setup and filters](docs/downloads.md).
+  and restart can be resumed. The terminal shows a live bar for completed sets and
+  an activity indicator while an archive transfers. See [download setup and filters](docs/downloads.md).
 - **Collections:** When starting a batch, optionally choose an existing or new
   collection name. The app records which downloaded sets still need import and
   collection assignment. Add them through the game's Manage Collections UI after

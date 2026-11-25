@@ -12,8 +12,11 @@ the dedicated Edge/Chrome window, including any browser verification. Return to
 the terminal and press Enter. Choose **1 start recent**.
 
 The default is **25 recently ranked osu!standard beatmapsets, newest first**.
-Closing/hiding the console does not stop the worker. The normal terminal reports
-job state, successfully saved count, pending count, current set and last saved ID.
+Closing/hiding the console does not stop the worker. The terminal shows a live
+bar for successfully saved beatmapsets and an activity indicator during an archive
+transfer. The browser does not provide a reliable total archive size here, so the
+bar measures completed **sets**, not bytes or the current file's percentage. The
+maps screen also reports job state, pending count, current set and last saved ID.
 Use **m** again for pause, resume or cancel. The browser also shows transfer progress.
 Tray Exit, app stop and updates pause active transfers; choose resume after restart.
 

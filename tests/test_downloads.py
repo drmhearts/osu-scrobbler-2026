@@ -461,7 +461,7 @@ async def test_menu_has_all_controls_without_mutating_library(stable, checkpoint
     async def back(text):
         return "0"
     await menu(store.root.parent, output=output.append, prompt=back)
-    joined = "\n".join(output)
+    joined = "\n".join(output).casefold()
     assert all(control in joined for control in ("start recent", "filters", "pause", "resume", "cancel", "sign in", "destination", "import saved"))
 
 

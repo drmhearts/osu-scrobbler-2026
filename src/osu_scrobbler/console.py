@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import os
 from pathlib import Path
+import re
 import sys
 
 from .config import WatchLock
@@ -165,6 +166,26 @@ async def show_console(directory: Path, *, output=print):
                 (directory / marker).unlink()
         interactive = sys.stdin is not None and sys.stdin.isatty()
         last_download_notice = None
+        live_progress = interactive and emit is print and sys.stdout is not None and sys.stdout.isatty()
+        progress_width = 0
+        progress_tick = 0
+
+        def clear_progress():
+            nonlocal progress_width
+            if live_progress and progress_width:
+                sys.stdout.write("\r" + " " * progress_width + "\r")
+                sys.stdout.flush()
+                progress_width = 0
+
+        def draw_progress(notice):
+            nonlocal progress_width
+            if not live_progress:
+                output(notice)
+                return
+            width = len(re.sub(r"\x1b\[[0-9;]*m", "", notice))
+            sys.stdout.write("\r" + notice + " " * max(0, progress_width - width) + "\r")
+            sys.stdout.flush()
+            progress_width = width
         if interactive and os.name != "nt":
             import termios
             import tty
@@ -173,14 +194,23 @@ async def show_console(directory: Path, *, output=print):
         while True:
             from .downloads.commands import progress_notice
             try:
-                notice = progress_notice(directory)
+                notice = progress_notice(directory, tick=progress_tick if live_progress else None)
                 if notice and notice != last_download_notice:
-                    output(notice)
+                    draw_progress(notice)
                     last_download_notice = notice
+                elif notice is None and last_download_notice:
+                    clear_progress()
+                    last_download_notice = None
             except (OSError, RuntimeError, ValueError):
                 pass
-            for line in await feed.read():
+            progress_tick += 1
+            events = await feed.read()
+            if events:
+                clear_progress()
+            for line in events:
                 output(line)
+            if events and live_progress and last_download_notice:
+                draw_progress(last_download_notice)
             exit_path = directory / "console.exit"
             if exit_path.exists():
                 exit_path.unlink()
@@ -203,6 +233,8 @@ async def show_console(directory: Path, *, output=print):
                 return
             if key in "fivesatbu?xrdmh" and key:
                 try:
+                    clear_progress()
+                    last_download_notice = None
                     if key in {"t", "r", "d", "m", "h"} and previous is not None:
                         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
                     try:
@@ -216,6 +248,8 @@ async def show_console(directory: Path, *, output=print):
                     output(await background_status(directory))
             await asyncio.sleep(0.25)
     finally:
+        if 'clear_progress' in locals():
+            clear_progress()
         if previous is not None:
             import termios
             termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
