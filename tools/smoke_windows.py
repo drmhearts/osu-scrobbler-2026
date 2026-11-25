@@ -44,7 +44,9 @@ async def check(directory):
             print("Native monitor did not open its IPC server", flush=True)
         raise
     finally:
-        await stop_running(directory)
+        # The smoke profile has no downloader. A real user may be downloading
+        # elsewhere under the shared limiter while this local build runs.
+        await stop_running(directory, worker_shared=directory / "smoke-shared")
     assert not (directory / "tray-control.json").exists()
     print("Installed launcher, native tray readiness and shutdown passed")
 

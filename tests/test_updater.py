@@ -352,8 +352,11 @@ async def test_setup_handoff_switches_entire_interface_and_preserves_startup_cho
     assert 'stdout' not in calls[0][1]  # The current version owns the visible terminal.
 
 
-async def test_startup_update_stops_owned_running_instance_only_after_a_new_release_exists(tmp_path):
+async def test_startup_update_stops_owned_running_instance_only_after_a_new_release_exists(tmp_path, monkeypatch):
     from osu_scrobbler.ipc import CommandServer
+    # An unrelated live downloader in the user's normal profile must not make
+    # this isolated updater fixture wait for that external worker lock.
+    monkeypatch.setattr("osu_scrobbler.downloads.service.worker_active", lambda shared=None: False)
     content = wheel()
     client, _ = network(content)
     updater = Updater(tmp_path, client=client, runner=Installer())

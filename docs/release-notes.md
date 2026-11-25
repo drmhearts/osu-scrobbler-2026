@@ -1,9 +1,8 @@
-# osu! life hacks 0.9.3
+# osu! life hacks 0.9.4
 
-- Replaced the Windows package readme with a plain README.txt.
-- Added UNINSTALL.cmd to stop the app, remove Windows startup and cached runtimes,
-  and leave map libraries and saved app data intact.
-- Releases now publish the current Windows ZIP, current wheel and checksums only.
-  GitHub's automatic source downloads remain available.
+- osu! sign-in and downloads now use your Windows default browser when it is
+  Firefox, Chrome or Edge. Firefox keeps a separate remembered profile.
+- Public map searches and local library scans remain available without signing
+  in. osu! requires a session for full archive downloads.
 
 ©Hky Sigh, 2026

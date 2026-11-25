@@ -1,10 +1,12 @@
 """Normal visible osu!web session in an OS-protected dedicated browser profile.
 
 No game tokens, normal browser cookies, passwords or browser verification are
-read/bypassed. Only this profile is automated. Requires installed Edge/Chrome.
+read/bypassed. Only this profile is automated. Uses the Windows default browser
+when it is Firefox, Chrome or Edge.
 """
 
 import asyncio
+import ctypes
 import os
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
@@ -15,6 +17,20 @@ from .models import AuthRequired, DownloadError, RateLimited, TransientError
 ORIGIN = "https://osu.ppy.sh"
 
 
+def default_browser_path():
+    """Ask Windows for the executable associated with HTTPS for this user."""
+    if os.name != "nt":
+        return None
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = ctypes.c_ulong(len(buffer))
+    # ASSOCSTR_EXECUTABLE=2. This resolves the user's HTTPS choice without
+    # parsing UserChoice hashes or opening a tab in another browser.
+    result = ctypes.windll.shlwapi.AssocQueryStringW(
+        0, 2, "https", "open", buffer, ctypes.byref(length))
+    path = Path(buffer.value) if result == 0 and buffer.value else None
+    return path if path and path.is_file() else None
+
+
 class BrowserSource:
     def __init__(self, directory):
         self.directory = Path(directory)
@@ -22,30 +38,40 @@ class BrowserSource:
         self.account = None
         self.error = None
         self.failed = asyncio.Event()
+        self.firefox = None
 
     async def __aenter__(self):
         if os.name != "nt":
-            raise DownloadError("Browser downloads currently support Windows with installed Edge or Chrome. Core/fixture commands remain portable.")
+            raise DownloadError("Browser downloads currently support Windows. Core/fixture commands remain portable.")
         # Refuse insecure credential backends, matching the existing app policy.
         from ..lastfm import CredentialStore
         CredentialStore()._secure_backend()
+        executable = default_browser_path()
+        name = executable.name.casefold() if executable else ""
+        if name == "firefox.exe":
+            from .firefox_source import FirefoxSource
+            self.firefox = FirefoxSource(self.directory, executable)
+            await self.firefox.__aenter__()
+            return self.firefox
+        if name not in {"msedge.exe", "chrome.exe"}:
+            raise DownloadError("Set Firefox, Chrome or Edge as your Windows default browser, then retry. No other browser was opened.")
         from playwright.async_api import async_playwright
         self.playwright = await async_playwright().start()
         profile = self.directory / "browser"
         profile.mkdir(parents=True, exist_ok=True)
         (self.directory / "browser-downloads").mkdir(parents=True, exist_ok=True)
         try:
-            for channel in ("msedge", "chrome"):
-                try:
-                    self.context = await self.playwright.chromium.launch_persistent_context(
-                        str(profile), channel=channel, headless=False, accept_downloads=True,
-                        ignore_default_args=["--password-store=basic", "--use-mock-keychain"],
-                        no_viewport=True, downloads_path=str(self.directory / "browser-downloads"))
-                    break
-                except Exception:
-                    continue
+            channel = "msedge" if name == "msedge.exe" else "chrome"
+            try:
+                self.context = await self.playwright.chromium.launch_persistent_context(
+                    str(profile), channel=channel, executable_path=str(executable), headless=False,
+                    accept_downloads=True,
+                    ignore_default_args=["--password-store=basic", "--use-mock-keychain"],
+                    no_viewport=True, downloads_path=str(self.directory / "browser-downloads"))
+            except Exception:
+                pass
             if not self.context:
-                raise DownloadError("Close this tool's dedicated browser, or install Microsoft Edge/Chrome, then retry.")
+                raise DownloadError("Close this tool's dedicated browser or repair your default browser, then retry.")
             self.context.set_default_timeout(15000)
             self.page = self.context.pages[0] if self.context.pages else await self.context.new_page()
             self.page.on("response", self._response)
@@ -191,6 +217,9 @@ class BrowserSource:
             await asyncio.gather(task, failure, return_exceptions=True)
 
     async def __aexit__(self, *args):
+        if self.firefox:
+            await self.firefox.__aexit__(*args)
+            return
         if self.context:
             try:
                 await self.context.close()

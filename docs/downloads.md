@@ -10,7 +10,7 @@ asks for a folder path. Type `help` during any maps prompt to keep your place,
 or `back` to leave that form without changing saved settings. Choose **1 start
 recent**. The tool first checks existing maps. It then reuses a signed-in osu!
 session or keeps the terminal open while you sign in and complete verification in
-the dedicated Edge/Chrome window. You can also choose **6 sign in** separately.
+your default Firefox, Chrome or Edge window. You can also choose **6 sign in** separately.
 After starting from the tray, the same terminal switches to a live progress view;
 press **m** for maps controls or **q** to hide it.
 
@@ -25,10 +25,18 @@ Tray Exit, app stop and updates pause active transfers; choose resume after rest
 
 Existing Windows packages include the Python browser driver; no separate Python,
 Node install, API key or downloaded browser is required. An installed, current
-Microsoft Edge or Chrome is required. Source installs use:
+Firefox, Chrome or Edge must be set as the Windows default browser. Firefox uses
+the installed Firefox binary and Selenium's matching geckodriver, which may be
+downloaded once and cached. It never downloads a browser. Source installs use:
 
     python -m pip install -e ".[test]"
     python -m osu_scrobbler maps
+
+Public listing searches and local library scans need no osu! sign-in. The full
+archive download route redirects unsigned requests, and osu!'s documented API
+download route requires the lazer OAuth scope. A signed-in osu! session is
+therefore still required to download public beatmapsets. No account-specific
+rank-achieved filter is provided at present.
 
 The browser transport currently supports Windows only, matching the app's native
 game/tray support. Pure filter/library/checkpoint tests remain portable.
@@ -91,8 +99,9 @@ API was found for either client; an in-game step is required.
 
 Last.fm and Discogs credentials cannot authorize osu! downloads. The app does not
 extract osu! game tokens or read your ordinary browser profile. It creates its own
-visible Edge/Chrome profile in the app data directory and leaves cookies in the
-browser's Windows-protected storage. Insecure/mock password-store flags are removed.
+visible profile for the Windows default browser in the app data directory.
+Firefox uses its normal profile cookie storage; Chrome and Edge use their normal
+Windows-protected profile storage. Insecure/mock password-store flags are removed.
 No cookie/session JSON export, password prompts, plaintext token files or token
 logging are used. The existing secure OS credential backend must be available.
 
@@ -226,7 +235,7 @@ Checked 2026-11-10:
 [lazer file storage](https://osu.ppy.sh/wiki/en/Client/Release_stream/Lazer/File_storage),
 [lazer archive import entry point](https://github.com/ppy/osu/blob/master/osu.Desktop/Program.cs).
 
-Regression tests use isolated libraries, fake sources and a real Edge transport
+Regression tests use isolated libraries, fake sources and real Firefox/Chromium transports
 with an entirely routed mock site. They do not verify a live osu! login, server
 quota or a player's actual library. Native game import still needs a manual check.
 The downloader does not depend on game-memory offsets; scrobbling's separate

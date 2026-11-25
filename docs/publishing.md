@@ -12,7 +12,7 @@ Use your Git checkout, with Python 3.11+ and Git installed and GitHub push acces
     python -m pip install -e ".[test]"
     git status
     git add .
-    git commit -m "Update Windows uninstall and release assets"
+    git commit -m "Use the default browser for osu! sign-in"
     .\tools\publish.ps1
 
 PowerShell may require a process-only execution-policy override:
@@ -25,7 +25,7 @@ The script requires a clean committed tree, checks package/runtime version
 agreement and existing remote tags, runs the local test suite, then pushes HEAD
 to main and release/v<version>. It never force-pushes or overwrites a tag.
 
-The prepared version is **0.9.3**. Future releases must update pyproject.toml,
+The prepared version is **0.9.4**. Future releases must update pyproject.toml,
 src/osu_scrobbler/__init__.py and docs/release-notes.md before committing.
 
 Open your repository's **Actions → Publish release**. After every check succeeds,
@@ -38,7 +38,7 @@ published if the required tests/build fail.
 After tests pass and the change is committed:
 
     git push origin HEAD:main
-    git push origin HEAD:refs/heads/release/v0.9.3
+    git push origin HEAD:refs/heads/release/v0.9.4
 
 This deliberately pushes a release branch rather than creating a tag yourself.
 The workflow creates the tag after validation. Git will reject a non-fast-forward

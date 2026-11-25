@@ -15,7 +15,7 @@ Dependencies retain their own licenses.
 | Last.fm credentials | API key/secret and session key in the OS vault. No password, osu! credentials or plaintext credential file. |
 | Updates | Public version/digest and current/previous program environments in the local data directory. No user identity, music history or credentials sent with release checks. |
 | Beatmap downloads (opt-in) | Filters, library metadata paths/IDs, queue, receipts and last successful set in a separate SQLite checkpoint. Shared account ID/request timestamps retain seven days of recent requests and ongoing cooldowns. Completed set IDs remain until explicitly removed with app data. No browser tokens in these databases. |
-| Downloader sign-in | Dedicated Edge/Chrome profile with normal Windows-protected cookie/session storage, separate from your ordinary browser and the game. Passwords/tokens are never entered into the terminal, exported to plaintext JSON or logged. |
+| Downloader sign-in | Dedicated profile for your Windows default Firefox, Chrome or Edge browser, separate from your ordinary profile and the game. Firefox uses its normal profile cookie storage; Chrome/Edge use Windows-protected storage. Passwords/tokens are never entered into the terminal, exported to plaintext JSON or logged. |
 
 **Online requests:** MusicBrainz, Discogs and Last.fm metadata receive song title/artist searches,
 optional release hints and music identifiers over HTTPS. Optional Discogs tokens

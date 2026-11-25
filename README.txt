@@ -13,8 +13,11 @@ GET STARTED
 3. Connect Last.fm once. Authorization is saved in the Windows credential vault.
 4. Open osu! and listen. Use the terminal or pink tray icon for controls.
 
-The ZIP includes Python. Bulk downloads use an installed Edge or Chrome browser
-and a separate, remembered osu! website sign-in. No external game reader is
+The ZIP includes Python. Bulk downloads use your installed Windows default
+browser (Firefox, Chrome or Edge) with a separate, remembered osu! website sign-in.
+Firefox may fetch its matching geckodriver once; no browser is downloaded.
+Public map searches and library scans do not need sign-in, but osu! requires it
+for full archive downloads. No external game reader is
 needed. To run from source, install with:
    python -m pip install -e ".[test]"
    python -m osu_scrobbler setup

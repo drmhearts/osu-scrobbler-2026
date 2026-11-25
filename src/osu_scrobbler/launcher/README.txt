@@ -9,6 +9,8 @@ The Windows package includes Python. It reads game state directly, without
 an external game reader. Live reading requires Windows x64. Stable uses
 signature checks; the lazer reader currently targets 2026.1005.0 x64.
 See docs/telemetry.md for reader compatibility.
+Map downloads use your Windows default Firefox, Chrome or Edge browser in a
+separate profile. Full archives require an osu! sign-in.
 
   i / v / s   Track info, details, watcher status
   f / t       Force scrobble, listening timer

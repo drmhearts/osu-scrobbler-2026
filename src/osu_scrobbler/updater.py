@@ -397,7 +397,7 @@ class Updater:
         raise UpdateError("No previous installation is available.")
 
 
-async def stop_running(directory):
+async def stop_running(directory, *, worker_shared=None):
     from .downloads.service import pause_active, worker_active
     pause_active(directory)
     from .ipc import send_command
@@ -410,7 +410,7 @@ async def stop_running(directory):
     while time.monotonic() < deadline:
         try:
             with WatchLock(directory, "tray.lock"), WatchLock(directory):
-                if not worker_active():
+                if not worker_active(worker_shared):
                     return
         except RuntimeError:
             await asyncio.sleep(0.25)

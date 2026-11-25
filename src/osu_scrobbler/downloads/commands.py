@@ -171,7 +171,7 @@ async def ensure_signed_in(directory, prompt, output):
                 try:
                     await source.connect()
                 except AuthRequired:
-                    output("Sign in to osu! in the Edge/Chrome window. This terminal will wait for you.")
+                    output("Sign in to osu! in your default browser window. This terminal will wait for you.")
                     await source.login(prompt)
         finally:
             limiter.close()
@@ -226,10 +226,10 @@ async def execute(args):
                         limiter.cooldown(error.seconds)
                     if isinstance(error, DownloadError):
                         raise
-                    raise DownloadError("Browser sign-in unavailable. Use installed Edge/Chrome and complete verification yourself; no bypass is attempted.") from None
+                    raise DownloadError("Browser sign-in unavailable. Check your default Firefox, Chrome or Edge installation and complete verification yourself.") from None
                 finally:
                     limiter.close()
-            return {"message": "osu! sign-in remembered in the dedicated browser's Windows-protected profile."}
+            return {"message": "osu! sign-in remembered in this tool's dedicated default-browser profile."}
         if action == "scan":
             destination = configure(store, args.client, args.root, args.exe)
             libraries = [Destination(**value) for value in store.preference("libraries", [])] + discover()

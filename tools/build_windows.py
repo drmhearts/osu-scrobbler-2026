@@ -56,7 +56,7 @@ def build(output):
         clean_env.pop("PYTHONHOME", None)
         subprocess.run([str(runtime / "python.exe"), "-c",
             "from osu_scrobbler import cli, watcher, tray, console; import httpx, keyring, psutil, pystray, PIL, sqlite3; "
-            "from osu_scrobbler.downloads.browser import BrowserSource; from playwright.async_api import async_playwright; "
+            "from osu_scrobbler.downloads.browser import BrowserSource; from playwright.async_api import async_playwright; import selenium; "
             "from keyring.backends.Windows import WinVaultKeyring; import ctypes; "
             "c=sqlite3.connect(':memory:'); assert c.execute('select 1').fetchone()==(1,); "
             f"from osu_scrobbler import __version__; assert __version__=={number!r}"], cwd=runtime, env=clean_env, check=True)

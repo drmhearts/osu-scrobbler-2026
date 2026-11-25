@@ -249,7 +249,7 @@ async def worker(directory, job_id, *, source_factory=None, shared=None):
     except DownloadError as error:
         store.update(job_id, state="error", message=str(error) + " Progress retained; use maps resume after correcting it.")
     except Exception:
-        store.update(job_id, state="error", message="Cannot start the download browser/worker. Install Edge or Chrome, close this tool's old browser, then resume. Progress retained.")
+        store.update(job_id, state="error", message="Cannot start the download browser/worker. Check your default Firefox, Chrome or Edge installation, then resume. Progress retained.")
     finally:
         limiter.close()
         store.close()
