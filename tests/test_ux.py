@@ -75,6 +75,14 @@ async def test_filter_invalid_count_reasks_same_field_without_losing_prior_value
 
 
 async def test_collection_choice_is_remembered_and_can_be_changed(tmp_path, monkeypatch):
+    stable = tmp_path / "Stable"
+    (stable / "Songs").mkdir(parents=True)
+    store = Store(tmp_path / "beatmap-downloads")
+    try:
+        commands.configure(store, "stable", stable)
+    finally:
+        store.close()
+    monkeypatch.setattr(commands, "discover", lambda: [])
     called = []
     async def fake_execute(args):
         called.append(args)
