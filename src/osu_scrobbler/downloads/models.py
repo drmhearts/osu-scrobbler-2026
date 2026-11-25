@@ -55,8 +55,8 @@ class Filters:
     def validate(self):
         if self.mode not in MODES or self.genre not in GENRES or self.category not in STATUSES:
             raise ValueError("Choose a listed mode, genre and category.")
-        if type(self.limit) is not int or not 1 <= self.limit <= 10000:
-            raise ValueError("Maximum beatmapsets must be 1–10000.")
+        if type(self.limit) is not int or self.limit <= 0:
+            raise ValueError("Download count must be a positive whole number of beatmapsets.")
         for value in (self.min_length, self.max_length):
             if value is not None and (type(value) not in (int, float) or not math.isfinite(value) or value < 0):
                 raise ValueError("Length must be a finite non-negative number of seconds.")

@@ -301,6 +301,32 @@ def test_manager_retries_independently_closes_handles_and_survives_pid_reuse():
         manager.close()
 
 
+def test_manager_prefers_lazer_on_initial_tie_but_preserves_active_gameplay(monkeypatch):
+    import osu_scrobbler.readers.manager as module
+    states = {10: sample("stable", state=0, personal=False),
+              20: sample("lazer", state=0, personal=False)}
+    class Memory:
+        def __init__(self, pid):
+            self.pid = pid
+            self.pointer_size = 4 if pid == 10 else 8
+        def close(self):
+            pass
+    class Reader:
+        def __init__(self, memory):
+            self.memory = memory
+        def read(self):
+            return states[self.memory.pid]
+    monkeypatch.setattr(module, "StableReader", Reader)
+    monkeypatch.setattr(module, "LazerReader", Reader)
+    manager = ReaderManager(lambda: [(10, 1.0), (20, 1.0)], Memory)
+    try:
+        assert manager.read().client == "lazer"
+        states[10] = sample("stable", state=2, personal=True)
+        assert manager.read().client == "stable"
+    finally:
+        manager.close()
+
+
 async def test_stream_recovers_without_network_or_orphan_handles():
     class Manager:
         selected = (1, 1)

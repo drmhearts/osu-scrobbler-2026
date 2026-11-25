@@ -46,7 +46,13 @@ async def threshold_prompt(directory, *, sender=None, reader=None, output=print)
     sender = sender or send_command
     while True:
         try:
-            value = await asyncio.to_thread(reader, "Timer: h half / f full / seconds [Enter cancels]: ")
+            value = await asyncio.to_thread(reader, "Timer: type h (half song), f (full song), seconds (e.g. 90), help, or Enter to cancel: ")
+            if value.strip().casefold() in {"help", "help timer"}:
+                from .help import help_text
+                output(help_text("timer"))
+                continue
+            if value.strip().casefold() in {"back", "cancel"}:
+                return None
             setting = parse_threshold(value)
             if setting is None:
                 return None

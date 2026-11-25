@@ -22,6 +22,8 @@ def parser():
     result.add_argument("--json", action="store_true", help="Show structured output instead of short terminal messages")
     result.add_argument("--skip-update-check", action="store_true", help=argparse.SUPPRESS)
     commands = result.add_subparsers(dest="command", required=True)
+    help_command = commands.add_parser("help", help="Show functions and contextual help topics")
+    help_command.add_argument("topic", nargs="?", default="")
     auth = commands.add_parser("auth", help="Authorize Last.fm through a browser and save credentials in the OS vault")
     auth.add_argument("--session", action="store_true", help="Securely enter an already authorized session key")
     discogs = commands.add_parser("discogs", help="Configure optional Discogs release search")
@@ -117,6 +119,9 @@ async def execute(args):
     directory = args.data_dir.expanduser().resolve()
     directory.mkdir(parents=True, exist_ok=True)
     command = args.command
+    if command == "help":
+        from .help import help_text
+        return {"message": help_text(args.topic)}
     if command == "maps":
         from .downloads.commands import execute as downloads_execute
         return await downloads_execute(args)

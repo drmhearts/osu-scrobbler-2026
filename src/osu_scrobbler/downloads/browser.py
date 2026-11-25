@@ -102,7 +102,15 @@ class BrowserSource:
             await self.page.goto(ORIGIN + "/home", wait_until="domcontentloaded", timeout=45000)
         except Exception:
             raise DownloadError("Could not open osu! sign-in in the dedicated browser.") from None
-        await prompt("Sign in and complete any verification in this browser, then press Enter here: ")
+        while True:
+            answer = (await prompt("Sign in and complete verification in the open browser. Press Enter to continue, or type help: ")).strip().casefold()
+            if answer in {"help", "help download"}:
+                from ..help import help_text
+                print(help_text("download"))
+            elif not answer:
+                break
+            else:
+                print("Press Enter after signing in, or type help for instructions.")
         await self._page("/home")
         return self.account
 

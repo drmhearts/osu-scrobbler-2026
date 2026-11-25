@@ -31,8 +31,16 @@ async def first_run(directory: Path, *, enable_startup=False, check_updates=True
         await authorize(directory)
     registered = startup_installed(directory)
     if not setup_complete(directory) and not enable_startup and not registered:
-        answer = await asyncio.to_thread(input, "Start automatically when you sign in to Windows? [y/N]: ")
-        enable_startup = answer.strip().casefold() in {"y", "yes"}
+        while True:
+            answer = (await asyncio.to_thread(input, "Start with Windows? Type yes or no [default: no]; type help for details: ")).strip().casefold()
+            if answer in {"help", "help setup", "help tray"}:
+                from .help import help_text
+                print(help_text("tray"))
+            elif answer in {"", "n", "no", "y", "yes"}:
+                enable_startup = answer in {"y", "yes"}
+                break
+            else:
+                print("Type yes or no. Press Enter for no.")
     if enable_startup or registered:
         install_startup(directory)
     # Only remember the setup decision after successful authorization/startup.

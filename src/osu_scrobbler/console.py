@@ -56,6 +56,10 @@ def focus_console():
 
 
 async def view_command(directory, key):
+    if key == "h":
+        from .help import help_text
+        topic = await asyncio.to_thread(input, "Help topic (Enter lists all): ")
+        return {"message": help_text(topic)}
     if key == "m":
         from .downloads.commands import menu
         await menu(directory)
@@ -197,14 +201,14 @@ async def show_console(directory: Path, *, output=print):
                         key = sys.stdin.read(1).lower()
             if key == "q":
                 return
-            if key in "fivesatbu?xrdm" and key:
+            if key in "fivesatbu?xrdmh" and key:
                 try:
-                    if key in {"t", "r", "d", "m"} and previous is not None:
+                    if key in {"t", "r", "d", "m", "h"} and previous is not None:
                         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
                     try:
                         response = await view_command(directory, key)
                     finally:
-                        if key in {"t", "r", "d", "m"} and previous is not None:
+                        if key in {"t", "r", "d", "m", "h"} and previous is not None:
                             tty.setcbreak(sys.stdin.fileno())
                     if response is not None:
                         output(render(response, full=key == "v"))

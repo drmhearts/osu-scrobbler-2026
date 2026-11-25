@@ -1,0 +1,176 @@
+"""User-facing flows and collection plans use isolated profiles and libraries."""
+
+import sqlite3
+
+import pytest
+
+from osu_scrobbler.cli import parser, execute
+from osu_scrobbler.downloads import commands
+from osu_scrobbler.downloads.commands import collection_guidance, count_warning, menu
+from osu_scrobbler.downloads.limiter import Limiter
+from osu_scrobbler.downloads.models import Destination, DownloadError, Filters
+from osu_scrobbler.downloads.store import Store
+from osu_scrobbler.welcome import welcome
+
+
+async def scripted(values, prompts):
+    iterator = iter(values)
+    async def answer(label):
+        prompts.append(label)
+        return next(iterator)
+    return answer
+
+
+async def test_help_topics_and_prompt_help_preserve_destination_progress(tmp_path, monkeypatch):
+    lazer = tmp_path / "lazer"
+    (lazer / "files").mkdir(parents=True)
+    monkeypatch.setattr(commands, "discover", lambda: [])
+    prompts, output = [], []
+    answer = await scripted(["7", "custom", "help collections", "wrong", "lazer", str(lazer), "", "0"], prompts)
+    await menu(tmp_path, output=output.append, prompt=answer)
+    saved = Store(tmp_path / "beatmap-downloads")
+    try:
+        assert saved.preference("destination")["client"] == "lazer"
+        assert saved.preference("destination")["root"] == str(lazer)
+    finally:
+        saved.close()
+    assert any("Type exactly 'lazer' or 'stable'" in line for line in output)
+    assert any("Manage Collections" in line for line in output)
+    assert sum("Which client?" in label for label in prompts) == 3
+    assert "reimu" not in welcome(tmp_path).casefold()
+    for topic in ("scrobble", "download", "export", "collections", "update", "privacy"):
+        result = await execute(parser().parse_args(["--data-dir", str(tmp_path), "help", topic]))
+        assert len(result["message"]) > 40
+
+
+async def test_detected_lazer_default_and_saved_stable_preference(tmp_path, monkeypatch):
+    stable = tmp_path / "Stable"
+    (stable / "Songs").mkdir(parents=True)
+    lazer = tmp_path / "lazer"
+    (lazer / "files").mkdir(parents=True)
+    monkeypatch.setattr(commands, "discover", lambda: [Destination("stable", str(stable)), Destination("lazer", str(lazer))])
+    store = Store(tmp_path / "state")
+    try:
+        assert commands.configure(store).client == "lazer"
+        commands.configure(store, "stable", stable)
+        assert commands.configure(store).client == "stable"
+        assert len(store.preference("libraries")) == 2
+    finally:
+        store.close()
+
+
+async def test_filter_invalid_count_reasks_same_field_without_losing_prior_values(tmp_path):
+    prompts, output = [], []
+    # Default values for first five fields; count is invalid, then unrestricted.
+    values = ["2", "", "", "", "", "", "0", "100000000000000000000", "", "", "", "0"]
+    answer = await scripted(values, prompts)
+    await menu(tmp_path, output=output.append, prompt=answer)
+    saved = Store(tmp_path / "beatmap-downloads")
+    try:
+        assert saved.preference("filters")["limit"] == 100000000000000000000
+    finally:
+        saved.close()
+    assert any("positive whole number" in line for line in output)
+    assert sum("How many beatmapsets?" in item for item in prompts) == 2
+
+
+async def test_collection_choice_is_remembered_and_can_be_changed(tmp_path, monkeypatch):
+    called = []
+    async def fake_execute(args):
+        called.append(args)
+        return {"message": "started"}
+    monkeypatch.setattr(commands, "execute", fake_execute)
+    prompts, output = [], []
+    await menu(tmp_path, output=output.append,
+               prompt=await scripted(["1", "yes", "existing", "Favorites"], prompts))
+    assert called[-1].collection == "Favorites" and not called[-1].new_collection
+    await menu(tmp_path, output=output.append,
+               prompt=await scripted(["1", "", "new", "New maps"], prompts))
+    assert called[-1].collection == "New maps" and called[-1].new_collection
+    saved = Store(tmp_path / "beatmap-downloads")
+    try:
+        assert saved.preference("collection") == {"enabled": True, "kind": "new", "name": "New maps"}
+    finally:
+        saved.close()
+
+
+def test_count_warning_uses_shared_history_without_rejecting_large_batches(tmp_path):
+    assert Filters(limit=10**50).validate().limit == 10**50
+    with pytest.raises(ValueError, match="positive whole"):
+        Filters(limit=0).validate()
+    limiter = Limiter(tmp_path / "shared", clock=lambda: 10000)
+    try:
+        assert limiter.reserve("42", 101, "download") is None
+        assert not count_warning(1, limiter)
+        warning = count_warning(100, limiter)
+        assert "1 archive requests" in warning and "Continuing" in warning
+    finally:
+        limiter.close()
+
+
+def test_collection_states_are_separate_and_do_not_modify_client_database(tmp_path):
+    stable = tmp_path / "Stable"
+    (stable / "Songs").mkdir(parents=True)
+    database = stable / "collections.db"
+    database.write_bytes(b"existing collection data")
+    archive = stable / "Songs" / "101.osz"
+    archive.write_bytes(b"validated by the download engine")
+    store = Store(tmp_path / "state")
+    try:
+        job = store.create(Filters(limit=1), Destination("stable", str(stable)),
+                           {"kind": "existing", "name": "Favourites"})
+        store.page(job, [{"id": 101}], None)
+        store.complete(job, 101, archive)
+        assert store.collection_members(job) == [{"set_id": 101, "state": "awaiting_import"}]
+        with pytest.raises(DownloadError, match="import"):
+            store.confirm_collection(job, 101)
+        store.confirm_stable({101})
+        assert store.collection_members(job)[0]["state"] == "manual_required"
+        assert "Manage Collections" in collection_guidance(store, job)["message"]
+        store.confirm_collection(job, 101)
+        assert store.collection_members(job)[0]["state"] == "confirmed_by_user"
+        assert database.read_bytes() == b"existing collection data"
+    finally:
+        store.close()
+
+
+def test_lazer_collection_plan_survives_restart_and_waits_for_import(tmp_path):
+    root = tmp_path / "lazer"
+    (root / "files").mkdir(parents=True)
+    realm = root / "client.realm"
+    realm.write_bytes(b"unchanged")
+    archive = tmp_path / "101.osz"
+    archive.write_bytes(b"validated by the download engine")
+    path = tmp_path / "state"
+    store = Store(path)
+    job = store.create(Filters(), Destination("lazer", str(root)), {"kind": "new", "name": "New maps"})
+    store.page(job, [{"id": 101}], None)
+    store.complete(job, 101, archive, state="downloaded")
+    store.close()
+    again = Store(path)
+    try:
+        assert again.job(job)["collection"] == {"name": "New maps", "kind": "new"}
+        assert again.collection_members(job)[0]["state"] == "awaiting_import"
+        with pytest.raises(DownloadError, match="import"):
+            again.confirm_collection(job, 101)
+        again.confirm_lazer(101)
+        assert again.collection_members(job)[0]["state"] == "manual_required"
+        assert realm.read_bytes() == b"unchanged"
+    finally:
+        again.close()
+
+
+def test_old_checkpoint_schema_gains_collection_tables_without_losing_history(tmp_path):
+    root = tmp_path / "old"
+    root.mkdir()
+    db = sqlite3.connect(root / "downloads.sqlite3")
+    db.execute("CREATE TABLE preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    db.execute("INSERT INTO preferences VALUES ('filters', '{\"limit\": 25}')")
+    db.commit()
+    db.close()
+    store = Store(root)
+    try:
+        assert store.preference("filters") == {"limit": 25}
+        assert store.db.execute("SELECT name FROM sqlite_master WHERE name='collection_members'").fetchone()
+    finally:
+        store.close()

@@ -14,7 +14,7 @@ from .service import import_archive, launch_worker, shared_root, worker, worker_
 from .store import Store
 
 ACTIONS = ("menu", "start", "resume", "pause", "cancel", "status", "scan", "login",
-           "configure", "import", "confirm", "worker")
+           "configure", "import", "confirm", "collection", "collection-confirm", "worker")
 
 
 def add_parser(commands):
@@ -29,12 +29,14 @@ def add_parser(commands):
     parser.add_argument("--category", choices=sorted(STATUSES))
     parser.add_argument("--ranked-from", help="Inclusive YYYY-MM-DD UTC date")
     parser.add_argument("--ranked-to", help="Inclusive YYYY-MM-DD UTC date")
-    parser.add_argument("--limit", type=int, help="Successful beatmapsets, default 25; remembered for subsequent jobs")
+    parser.add_argument("--limit", type=int, help="Positive whole number of successful beatmapsets, default 25")
     parser.add_argument("--min-length", type=float, help="Full difficulty duration in seconds")
     parser.add_argument("--max-length", type=float)
     parser.add_argument("--mapper", help="Exact host mapper username or numeric user ID")
     parser.add_argument("--foreground", action="store_true", help="Run worker in this terminal instead of background")
     parser.add_argument("--set-id", type=int, help="Explicitly confirm a downloaded lazer set was imported")
+    parser.add_argument("--collection", help="Optional existing/new in-game collection name; assignment is a manual step")
+    parser.add_argument("--new-collection", action="store_true", help="Mark --collection as a new collection to create in the game")
     return parser
 
 
@@ -57,9 +59,9 @@ def configure(store, client=None, root=None, executable=None):
         destination = Destination(**saved).validate()
     else:
         choices = discover()
-        if len(choices) != 1:
-            raise DownloadError("Choose a destination using maps → destination, or maps configure --client ... --root ...")
-        destination = choices[0].validate()
+        if not choices:
+            raise DownloadError("No osu! installation found. Use maps → destination, or maps configure --client lazer --root STORAGE_DIRECTORY.")
+        destination = next((choice for choice in choices if choice.client == "lazer"), choices[0]).validate()
     libraries = store.preference("libraries", [])
     key = (destination.client, destination.root)
     libraries = [value for value in libraries if (value["client"], value["root"]) != key]
@@ -78,7 +80,46 @@ def describe(store, job_id=None):
     text = (f"Maps #{job['id']}: {job['state']} | {job['count']}/{job['filters']['limit']} sets | "
             f"{job['pending']} pending | {root['client']}\n"
             f"Last saved: {job['last_id'] or 'none'}. {job['message']}")
+    if job["collection"]:
+        text += f"\nCollection '{job['collection']['name']}': {job['collection_pending']} sets need import/assignment in the game. Use maps collection."
     return {"message": text, "download_job": job, "receipts": store.receipts()}
+
+
+def collection_plan(name, kind="existing"):
+    name = str(name).strip()
+    if not name or len(name) > 120 or any(ord(char) < 32 for char in name):
+        raise DownloadError("Enter a collection name (1–120 printable characters).")
+    if kind not in {"existing", "new"}:
+        raise DownloadError("Type existing or new for the collection kind.")
+    return {"name": name, "kind": kind}
+
+
+def collection_guidance(store, job_id=None):
+    job = store.job(job_id)
+    plan = job["collection"]
+    if not plan:
+        return {"message": "This batch has no collection plan. Enable it when starting a new batch."}
+    members = store.collection_members(job["id"])
+    pending = [f"{item['set_id']} ({item['state'].replace('_', ' ')})" for item in members
+               if item["state"] != "confirmed_by_user"]
+    instructions = ("In lazer: after import, find each set in Song Select, open its options and add the entire set in Manage collections. "
+                    "In Stable: refresh/import, select the set, open Beatmap Options (F3) → Manage Collections. ")
+    shown = ", ".join(pending[:20]) + (f" … and {len(pending) - 20} more (use --json maps collection for all IDs)" if len(pending) > 20 else "")
+    text = (f"Collection '{plan['name']}' ({plan['kind']}): {shown if pending else 'no pending sets'}. "
+            + instructions + "Create the named collection there if new. The app never writes collection databases; "
+            "assignment is unverified until you inspect it in the game.")
+    return {"message": text, "collection": plan, "members": members}
+
+
+def count_warning(limit, limiter):
+    recent = limiter.recent_downloads()
+    remaining = max(0, limiter.hourly - recent)
+    if limit <= remaining:
+        return ""
+    return (f"Requested {limit} beatmapsets; {recent} archive requests were recorded in the past hour. "
+            f"This app permits at most {limiter.hourly} archive requests per rolling hour and spaces them "
+            f"at least {limiter.spacing} seconds apart. The batch may take hours. osu! can still limit the "
+            "account independently; progress and cooldown are saved. Continuing.")
 
 
 async def execute(args):
@@ -102,6 +143,14 @@ async def execute(args):
             return {"message": f"Destination remembered: {destination.client} — {destination.root}", "destination": destination.to_dict()}
         if action == "status":
             return describe(store, args.job)
+        if action == "collection":
+            return collection_guidance(store, args.job)
+        if action == "collection-confirm":
+            if not args.set_id or args.set_id <= 0:
+                raise DownloadError("Use --set-id with the set you added and checked in the game's collection UI.")
+            job = store.job(args.job)
+            store.confirm_collection(job["id"], args.set_id)
+            return {"message": f"Recorded your in-game collection check for set {args.set_id}. The app cannot verify collection membership directly."}
         if action == "login":
             from .browser import BrowserSource
             with WatchLock(shared_root(), "worker.lock"):
@@ -174,7 +223,15 @@ async def execute(args):
             values = store.preference("filters", {})
             values.update({field.name: getattr(args, field.name) for field in fields(Filters) if getattr(args, field.name, None) is not None})
             filters = Filters(**values).validate()
-            job_id = store.create(filters, destination)
+            if args.new_collection and not args.collection:
+                raise DownloadError("--new-collection requires --collection NAME.")
+            plan = collection_plan(args.collection, "new" if args.new_collection else "existing") if args.collection else None
+            limiter = Limiter(shared_root())
+            try:
+                warning = count_warning(filters.limit, limiter)
+            finally:
+                limiter.close()
+            job_id = store.create(filters, destination, collection=plan)
         else:
             job = store.job(args.job)
             job_id = job["id"]
@@ -189,11 +246,15 @@ async def execute(args):
             await worker(args.data_dir, job_id)
             check = Store(Path(args.data_dir) / "beatmap-downloads")
             try:
-                return describe(check, job_id)
+                result = describe(check, job_id)
+                if action == "start" and warning:
+                    result["message"] = warning + "\n" + result["message"]
+                return result
             finally:
                 check.close()
         launch_worker(args.data_dir, job_id)
-        return {"message": f"Maps batch #{job_id} started in the background. m opens controls; maps status/pause/resume/cancel also work. Full sets may include other modes/difficulties."}
+        return {"message": (warning + "\n" if action == "start" and warning else "") +
+                f"Maps batch #{job_id} started in the background. m opens controls; maps status/pause/resume/cancel also work. Full sets may include other modes/difficulties."}
     finally:
         if store:
             store.close()
@@ -201,6 +262,172 @@ async def execute(args):
 
 async def ask(text):
     return await asyncio.to_thread(input, text)
+
+
+class MenuBack(Exception):
+    """Leave the current form without changing its saved preferences."""
+
+
+async def _reply(prompt, output, label, topic="download"):
+    from ..help import help_text
+    while True:
+        value = (await prompt(label)).strip()
+        if value.casefold() in {"back", "cancel"}:
+            raise MenuBack
+        if value.casefold() == "help" or value.casefold().startswith("help "):
+            requested = value[5:].strip() if len(value) > 4 else topic
+            output(help_text(requested))
+            continue
+        return value
+
+
+async def _filters_menu(store, output, prompt):
+    previous = store.preference("filters", Filters().to_dict())
+    values = dict(previous)
+    labels = {
+        "mode": "Mode: osu (standard), taiko, catch or mania",
+        "genre": "Genre: " + ", ".join(GENRES),
+        "category": "Category: " + ", ".join(sorted(STATUSES)),
+        "ranked_from": "Ranked from: YYYY-MM-DD UTC (inclusive)",
+        "ranked_to": "Ranked through: YYYY-MM-DD UTC (inclusive)",
+        "limit": "How many beatmapsets? Positive whole number; full sets may include other modes",
+        "min_length": "Minimum full difficulty length in seconds, e.g. 90",
+        "max_length": "Maximum full difficulty length in seconds, e.g. 240",
+        "mapper": "Host mapper: exact username or numeric user ID",
+    }
+
+    async def edit(key):
+        default = Filters()
+        while True:
+            value = values[key]
+            reply = await _reply(prompt, output, f"{labels[key]} [current: {value if value is not None and value != '' else 'any'}]. Enter keeps, - clears, back cancels: ")
+            if not reply:
+                return
+            if reply == "-":
+                values[key] = getattr(default, key)
+                return
+            try:
+                parsed = int(reply) if key == "limit" else (float(reply) if key in {"min_length", "max_length"} else reply.casefold() if key in {"mode", "genre", "category"} else reply)
+                trial = dict(values)
+                trial[key] = parsed
+                # Validate single-field shape before committing, while allowing
+                # interdependent ranges to be corrected at the end.
+                if key == "limit" and (type(parsed) is not int or parsed <= 0):
+                    raise ValueError("Enter a positive whole number of beatmapsets, e.g. 25.")
+                if key in {"min_length", "max_length"} and parsed < 0:
+                    raise ValueError("Length must be zero or greater, in seconds.")
+                if key == "mode" and parsed not in MODES or key == "genre" and parsed not in GENRES or key == "category" and parsed not in STATUSES:
+                    raise ValueError("Choose one of the listed options.")
+                if key in {"ranked_from", "ranked_to"}:
+                    Filters(**{**Filters().to_dict(), key: parsed}).validate()
+                values[key] = parsed
+                return
+            except (ValueError, OverflowError) as error:
+                output(str(error) if str(error) else "Enter the requested format; type help for details.")
+
+    for key in labels:
+        await edit(key)
+    while True:
+        try:
+            filters = Filters(**values).validate()
+            break
+        except ValueError as error:
+            output(str(error))
+            key = (await _reply(prompt, output, "Which filter should change? Type mode, genre, category, ranked_from, ranked_to, limit, min_length, max_length or mapper; back cancels: ")).casefold().replace("-", "_")
+            if key in labels:
+                await edit(key)
+            else:
+                output("Type one of the listed filter names.")
+    store.remember("filters", filters.to_dict())
+    output("Filters saved. Count means beatmapsets; mode and length must match the same difficulty.")
+
+
+async def _destination_menu(store, output, prompt):
+    choices = sorted(discover(), key=lambda item: (item.client != "lazer", item.root.casefold()))
+    saved = store.preference("destination")
+    if saved:
+        output(f"Current: {saved['client']} — {saved['root']}")
+    for index, destination in enumerate(choices, 1):
+        output(f"{index}: {destination.client} — {destination.root}")
+    default = "current" if saved else ("1" if choices else "custom")
+    while True:
+        reply = (await _reply(prompt, output, f"Destination: type an installation number, custom, or current [default: {default}]; back cancels: ")).casefold() or default
+        if reply == "current" and saved:
+            try:
+                destination = Destination(**saved).validate()
+                break
+            except (ValueError, OSError) as error:
+                output(str(error) + " Choose a detected installation or type custom to correct it.")
+                continue
+        if reply.isdecimal() and 1 <= int(reply) <= len(choices):
+            try:
+                destination = choices[int(reply) - 1].validate()
+                break
+            except (ValueError, OSError) as error:
+                output(str(error) + " Try another installation or custom.")
+                continue
+        if reply == "custom":
+            client_default = saved["client"] if saved else "lazer"
+            while True:
+                client = (await _reply(prompt, output, f"Which client? Type lazer or stable [default: {client_default}]; back cancels: ")).casefold() or client_default
+                if client in {"lazer", "stable"}:
+                    break
+                output("Type exactly 'lazer' or 'stable'. A folder path belongs in the next prompt.")
+            root_default = saved["root"] if saved and saved["client"] == client else ""
+            example = r"C:\Users\You\AppData\Roaming\osu" if client == "lazer" else r"C:\Games\osu!\Songs"
+            root_label = "lazer storage directory containing files" if client == "lazer" else "Stable installation or Songs directory"
+            root = await _reply(prompt, output, f"{root_label}. Enter a folder path, e.g. {example}" + (f" [default: {root_default}]" if root_default else "") + "; back cancels: ")
+            root = (root or root_default).strip('"')
+            exe_default = saved.get("executable", "") if saved and saved["client"] == client and saved["root"] == root else ""
+            executable = await _reply(prompt, output, f"Client .exe path (optional; Enter {('keeps ' + exe_default) if exe_default else 'skips automatic lazer import'}), e.g. C:\\Games\\osu!\\osu!.exe; back cancels: ")
+            executable = (executable or exe_default).strip('"')
+            while True:
+                try:
+                    destination = Destination(client, root, executable).validate()
+                    break
+                except (ValueError, OSError) as error:
+                    output(str(error))
+                    field = (await _reply(prompt, output, "Correct which field? Type client, path or exe; back cancels: ")).casefold()
+                    if field == "client":
+                        client = (await _reply(prompt, output, "Which client? Type lazer or stable: ")).casefold()
+                    elif field == "path":
+                        root = (await _reply(prompt, output, "Enter the existing installation/storage folder path: ")).strip('"')
+                    elif field == "exe":
+                        executable = (await _reply(prompt, output, "Enter an existing .exe path, or Enter to skip: ")).strip('"')
+                    else:
+                        output("Type client, path or exe.")
+            break
+        output("Type a shown number, 'custom', or 'current'. Type help for destination advice.")
+    configure(store, destination.client, destination.root, destination.executable)
+    output(f"Destination saved: {destination.client} — {destination.root}. Existing files remain untouched.")
+
+
+async def _collection_prompt(store, output, prompt):
+    preference = store.preference("collection", {"enabled": False, "kind": "existing", "name": ""})
+    default = "yes" if preference.get("enabled") else "no"
+    while True:
+        answer = (await _reply(prompt, output, f"Add downloaded maps to a collection? Type yes or no [default: {default}]; back cancels: ", "collections")).casefold() or default
+        if answer in {"yes", "no"}:
+            break
+        output("Type yes or no.")
+    if answer == "no":
+        store.remember("collection", {**preference, "enabled": False})
+        return None
+    while True:
+        kind = (await _reply(prompt, output, f"Collection: type existing or new [default: {preference.get('kind', 'existing')}]; back cancels: ", "collections")).casefold() or preference.get("kind", "existing")
+        if kind in {"existing", "new"}:
+            break
+        output("Type existing or new.")
+    while True:
+        name = await _reply(prompt, output, f"Collection name in {kind} list [default: {preference.get('name') or 'none'}]; back cancels: ", "collections")
+        try:
+            plan = collection_plan(name or preference.get("name", ""), kind)
+            break
+        except DownloadError as error:
+            output(str(error))
+    store.remember("collection", {"enabled": True, **plan})
+    output("Collection plan saved. Add imported sets in the game's collection UI; this tool will list them and never claim unverified assignment.")
+    return plan
 
 
 async def menu(directory, *, output=print, prompt=ask):
@@ -212,62 +439,53 @@ async def menu(directory, *, output=print, prompt=ask):
             output("\nBeatmap downloads — full archives, including available media")
             output(describe(store)["message"])
             output("1 start recent  2 filters  3 pause  4 resume  5 cancel")
-            output("6 sign in  7 destination  8 import saved  9 scan  0 back")
+            output("6 sign in  7 destination  8 import saved  9 scan  c collection  h help  0 back")
             output("Full sets may include other modes/difficulties. Limits count sets.")
-            choice = (await prompt("Maps > ")).strip().lower()
+            choice = (await prompt("Maps > Type a shown number/letter, help [topic], or 0 to go back: ")).strip().lower()
             if choice in {"0", "q", ""}:
                 return
+            if choice in {"h", "help"} or choice.startswith("help "):
+                from ..help import help_text
+                output(help_text(choice[5:].strip() if choice.startswith("help ") else "maps"))
+                continue
             if choice == "2":
-                previous = store.preference("filters", Filters().to_dict())
-                labels = {"mode": "Mode: osu, taiko, catch, mania", "genre": "Genre: " + ", ".join(GENRES),
-                          "category": "Category: " + ", ".join(sorted(STATUSES)),
-                          "ranked_from": "Ranked from YYYY-MM-DD UTC (inclusive)",
-                          "ranked_to": "Ranked through YYYY-MM-DD UTC (inclusive)",
-                          "limit": "Maximum successful beatmapsets",
-                          "min_length": "Minimum full difficulty length (seconds)",
-                          "max_length": "Maximum full difficulty length (seconds)",
-                          "mapper": "Host mapper: exact username or user ID"}
-                values = dict(previous)
-                for key, label in labels.items():
-                    reply = (await prompt(f"{label} [{previous[key] if previous[key] is not None else 'any'}] (Enter keeps, - clears): ")).strip()
-                    if reply == "-":
-                        values[key] = None if key in {"min_length", "max_length"} else ("" if key in {"mapper", "ranked_from", "ranked_to"} else getattr(Filters(), key))
-                    elif reply:
-                        values[key] = int(reply) if key == "limit" else (float(reply) if key in {"min_length", "max_length"} else reply)
-                filters = Filters(**values).validate()
-                store.remember("filters", filters.to_dict())
-                output("Filters remembered. Mode and length must match the same difficulty; missing ranked dates are excluded.")
+                await _filters_menu(store, output, prompt)
                 continue
             if choice == "7":
-                choices = discover()
-                for index, destination in enumerate(choices, 1):
-                    output(f"{index}: {destination.client} — {destination.root}")
-                reply = (await prompt("Installation number, or Enter to enter a custom path: ")).strip()
-                if reply:
-                    destination = choices[int(reply) - 1]
-                    configure(store, destination.client, destination.root, destination.executable)
-                else:
-                    client = (await prompt("Client [stable/lazer]: ")).strip().lower()
-                    root = (await prompt("Installation/Songs (stable), or storage directory (lazer): ")).strip().strip('"')
-                    executable = (await prompt("Client .exe (Enter leaves archives downloaded for later import): ")).strip().strip('"')
-                    configure(store, client, root, executable)
-                output("Destination remembered. Existing library files will never be replaced.")
+                await _destination_menu(store, output, prompt)
                 continue
-        except (ValueError, IndexError, DownloadError, OSError):
-            output("Setting not accepted. Previous preferences and library preserved.")
+            if choice == "c":
+                output(collection_guidance(store)["message"])
+                continue
+            if choice == "1":
+                plan = await _collection_prompt(store, output, prompt)
+            else:
+                plan = None
+        except MenuBack:
+            output("Back to maps. Saved settings and progress are unchanged.")
+            continue
+        except (ValueError, IndexError, DownloadError, OSError) as error:
+            output(str(error) if str(error) else "Setting not accepted; saved preferences and library were kept.")
             continue
         finally:
             store.close()
         action = {"1": "start", "3": "pause", "4": "resume", "5": "cancel", "6": "login", "8": "import", "9": "scan"}.get(choice)
         if action:
             try:
-                args = parser().parse_args(["--data-dir", str(directory), "maps", action])
+                argv = ["--data-dir", str(directory), "maps", action]
+                if action == "start" and plan:
+                    argv += ["--collection", plan["name"]]
+                    if plan["kind"] == "new":
+                        argv.append("--new-collection")
+                args = parser().parse_args(argv)
                 result = await execute(args)
                 output(result["message"])
                 if action in {"start", "resume"}:
                     return  # Main terminal's live feed reports subsequent progress.
             except (DownloadError, OSError, RuntimeError, ValueError) as error:
                 output(str(error) if isinstance(error, DownloadError) else "Maps action unavailable. Progress retained.")
+        else:
+            output("Type a shown command, h for help, or 0 to go back.")
 
 
 def progress_notice(directory):

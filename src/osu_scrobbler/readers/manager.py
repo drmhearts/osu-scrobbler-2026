@@ -67,8 +67,10 @@ class ReaderManager:
                 self.errors[identity] = str(error)
         if not samples:
             raise ReaderUnavailable(errors[0] if errors else 'Waiting for osu! / a supported game layout')
-        # Prefer personal gameplay, otherwise retain the selected process. This
-        # avoids alternating maps each poll when both clients are open.
-        samples.sort(key=lambda pair: (not (pair[1].state == 2 and pair[1].personal), pair[0] != self.selected, pair[0]))
+        # Prefer personal gameplay, retain the current process, and choose lazer
+        # first on an initial tie when both clients are open.
+        samples.sort(key=lambda pair: (not (pair[1].state == 2 and pair[1].personal),
+                                       pair[0] != self.selected if self.selected else False,
+                                       self.readers[pair[0]][0].pointer_size != 8, pair[0]))
         self.selected, sample = samples[0]
         return sample

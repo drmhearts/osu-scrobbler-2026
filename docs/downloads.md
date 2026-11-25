@@ -3,7 +3,11 @@
 ## First use
 
 On Windows x64, open **m maps** in the regular terminal or **Beatmap downloads**
-from the tray. Choose **7 destination**, then **6 sign in**. Sign in yourself in
+from the tray. The app chooses a detected lazer destination by default; choose
+**7 destination** to change it. The prompt accepts a shown number, `custom`, or
+`current`. Custom setup first asks you to type `lazer` or `stable`, then separately
+asks for a folder path. Type `help` during any maps prompt to keep your place,
+or `back` to leave that form without changing saved settings. Choose **6 sign in**. Sign in yourself in
 the dedicated Edge/Chrome window, including any browser verification. Return to
 the terminal and press Enter. Choose **1 start recent**.
 
@@ -34,7 +38,7 @@ clears an optional constraint or restores its default. Preferences are remembere
 | Genre | osu!'s named website genres; any by default. |
 | Category | Ranked by default; approved, loved, qualified, pending, wip, graveyard or any. Ranked and approved are filtered separately, even though the website groups their search results. |
 | Ranked dates | Inclusive YYYY-MM-DD **UTC calendar days**, using ranked_date. For any, sets without that field are excluded. Qualified/pending/wip/graveyard reject ranked-date filters instead of silently substituting an update date. |
-| Maximum | Successful new beatmapsets in this job, default 25, range 1–10000. Existing/duplicate sets do not consume the count. |
+| Count | Successful new beatmapsets in this job, default 25. Any positive whole number is accepted. Existing/duplicate sets do not consume the count. |
 | Length | Inclusive minimum/maximum **full difficulty duration in seconds**, not drain time. |
 | Mapper | Exact host mapper username (Unicode/case normalized), or numeric user ID; guest difficulty authors are not substituted for the host. |
 
@@ -45,6 +49,37 @@ per difficulty. Full archives can contain additional difficulties or other modes
 Ranked/approved/loved/any listings use ranked date descending; categories without
 ranked dates use last update descending. A finite matching listing can end before
 the requested maximum. After 200 search pages, the job pauses with its cursor saved.
+Large count requests show a warning based on the app's rolling-hour pacing and
+recent saved request history, then continue. This is not an osu! server quota:
+the [official API guidance](https://osu.ppy.sh/docs/) asks for respectful use,
+caching and backoff, but does not guarantee an archive allowance. The website may
+limit downloads independently, including activity from another device. Actual
+server limits and `Retry-After` stop requests and save the job for later resume.
+
+## Optional collections
+
+When starting a batch, answer `yes` to **Add downloaded maps to a collection?**,
+choose `existing` or `new`, and enter its exact name. The choice is remembered for
+the next interactive batch, and can be changed there. From the CLI, pass
+`--collection NAME` and optionally `--new-collection` to `maps start`.
+
+The app stores each batch's collection plan and separate `awaiting_import`,
+`manual_required`, or `confirmed_by_user` state per set. It never replaces an
+existing collection or writes Stable's collections.db or lazer's managed Realm.
+After import, use the client's collection UI to add the **whole beatmapset**:
+
+- **lazer:** In Song Select, open a set's options and choose Manage collections.
+  Create the named collection if needed, then add the set.
+- **Stable:** Refresh/import the set, select it, then open Beatmap Options (F3)
+  → Manage Collections. Create/select the name and add the set.
+
+`maps collection` lists sets needing action. After checking membership inside the
+game, `maps collection-confirm --set-id 123456` records your report, labelled
+`confirmed_by_user`; it does **not** claim an automatic verification. osu!'s
+[Stable interface guide](https://osu.ppy.sh/wiki/en/Client/Interface) and
+[lazer interface guide](https://osu.ppy.sh/community/forums/topics/2221264)
+describe the collection UI. No supported external collection assignment/import
+API was found for either client; an in-game step is required.
 
 ## Sign-in and privacy
 

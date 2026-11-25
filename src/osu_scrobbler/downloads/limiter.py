@@ -89,6 +89,10 @@ class Limiter:
     def known(self):
         return {row[0] for row in self.db.execute("SELECT set_id FROM receipts")}
 
+    def recent_downloads(self):
+        return self.db.execute("SELECT COUNT(*) FROM requests WHERE kind='download' AND at>?",
+                               (self.clock() - 3600,)).fetchone()[0]
+
     def completed(self, set_id, path):
         if not Path(path).is_file():
             raise DownloadError("No placed archive; shared receipt unchanged.")

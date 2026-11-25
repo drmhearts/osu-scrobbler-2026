@@ -35,6 +35,11 @@ class Store:
             CREATE TABLE IF NOT EXISTS file_cache (
                 path TEXT PRIMARY KEY, size INTEGER, modified INTEGER, ids TEXT);
             CREATE TABLE IF NOT EXISTS preferences (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS collection_jobs (
+                job INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS collection_members (
+                job INTEGER NOT NULL, set_id INTEGER NOT NULL, state TEXT NOT NULL,
+                PRIMARY KEY(job,set_id));
         """)
         if "failures" not in {row[1] for row in self.db.execute("PRAGMA table_info(jobs)")}:
             with self.db:
@@ -51,13 +56,16 @@ class Store:
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO preferences VALUES (?,?)", (key, json.dumps(value)))
 
-    def create(self, filters, destination):
+    def create(self, filters, destination, collection=None):
         filters.validate()
         destination.validate()
         with self.db:
             result = self.db.execute("INSERT INTO jobs(filters,destination,created) VALUES (?,?,?)",
                                      (json.dumps(filters.to_dict()), json.dumps(destination.to_dict()), time.time()))
             job_id = result.lastrowid
+            if collection:
+                self.db.execute("INSERT INTO collection_jobs VALUES (?,?,?)",
+                                (job_id, collection["name"], collection["kind"]))
         self.remember("filters", filters.to_dict())
         self.remember("destination", destination.to_dict())
         return job_id
@@ -72,7 +80,16 @@ class Store:
         result["destination"] = json.loads(result["destination"])
         result["pending"] = self.db.execute("SELECT COUNT(*) FROM queue WHERE job=? AND state IN ('pending','downloading','validated')",
                                             (result["id"],)).fetchone()[0]
+        plan = self.db.execute("SELECT name,kind FROM collection_jobs WHERE job=?", (result["id"],)).fetchone()
+        result["collection"] = dict(plan) if plan else None
+        result["collection_pending"] = self.db.execute(
+            "SELECT COUNT(*) FROM collection_members WHERE job=? AND state!='confirmed_by_user'",
+            (result["id"],)).fetchone()[0]
         return result
+
+    def collection_members(self, job_id):
+        return [dict(item) for item in self.db.execute(
+            "SELECT set_id,state FROM collection_members WHERE job=? ORDER BY set_id", (job_id,))]
 
     def update(self, job_id, **values):
         allowed = {"state", "control", "cursor", "exhausted", "count", "last_id", "message", "progress", "account", "failures"}
@@ -125,6 +142,10 @@ class Store:
                                       (set_id, job_id, str(path), state, time.time())).rowcount
             self.db.execute("UPDATE queue SET state=?,placed=? WHERE job=? AND set_id=?", (state, str(path), job_id, set_id))
             if inserted:
+                if self.db.execute("SELECT 1 FROM collection_jobs WHERE job=?", (job_id,)).fetchone():
+                    collection_state = "manual_required" if state in {"imported", "imported_confirmed_by_user"} else "awaiting_import"
+                    self.db.execute("INSERT OR IGNORE INTO collection_members VALUES (?,?,?)",
+                                    (job_id, set_id, collection_state))
                 self.db.execute("UPDATE jobs SET count=count+1,last_id=?,progress=0 WHERE id=?", (set_id, job_id))
                 job = self.db.execute("SELECT count,filters FROM jobs WHERE id=?", (job_id,)).fetchone()
                 if job[0] >= json.loads(job[1])["limit"]:
@@ -144,6 +165,7 @@ class Store:
             for set_id in ids:
                 self.db.execute("UPDATE history SET state='imported' WHERE set_id=?", (set_id,))
                 self.db.execute("UPDATE queue SET state='imported' WHERE set_id=? AND state='queued_for_import'", (set_id,))
+                self.db.execute("UPDATE collection_members SET state='manual_required' WHERE set_id=? AND state='awaiting_import'", (set_id,))
 
     def confirm_lazer(self, set_id):
         # Explicit user confirmation, not an inference from an import process's exit code.
@@ -152,6 +174,16 @@ class Store:
                 raise DownloadError("No downloaded archive with that ID.")
             self.db.execute("UPDATE history SET state='imported_confirmed_by_user' WHERE set_id=?", (set_id,))
             self.db.execute("UPDATE queue SET state='imported_confirmed_by_user' WHERE set_id=?", (set_id,))
+            self.db.execute("UPDATE collection_members SET state='manual_required' WHERE set_id=? AND state='awaiting_import'", (set_id,))
+
+    def confirm_collection(self, job_id, set_id):
+        with self.db:
+            row = self.db.execute("SELECT state FROM collection_members WHERE job=? AND set_id=?", (job_id, set_id)).fetchone()
+            if not row:
+                raise DownloadError("That set has no collection plan in this job.")
+            if row[0] not in {"manual_required", "confirmed_by_user"}:
+                raise DownloadError("Confirm the set's import in the client before adding it to a collection.")
+            self.db.execute("UPDATE collection_members SET state='confirmed_by_user' WHERE job=? AND set_id=?", (job_id, set_id))
 
     def get(self, path, stamp):
         row = self.db.execute("SELECT ids FROM file_cache WHERE path=? AND size=? AND modified=?", (path, *stamp)).fetchone()
