@@ -38,6 +38,14 @@ download route requires the lazer OAuth scope. A signed-in osu! session is
 therefore still required to download public beatmapsets. No account-specific
 rank-achieved filter is provided at present.
 
+First-run setup can save your own osu! OAuth application's Client ID and Secret
+in the OS vault and validate the public API connection. This is optional for
+map searches and does not authorize website sign-in or archive downloads.
+`osu-api preview` checks the saved connection; `osu-api connect` updates it.
+If Cloudflare rejects the dedicated automated download browser, the app
+cannot pass verification for you or borrow cookies from your usual browser.
+Use that browser for manual downloads until the website permits this session.
+
 The browser transport currently supports Windows only, matching the app's native
 game/tray support. Pure filter/library/checkpoint tests remain portable.
 

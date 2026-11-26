@@ -84,6 +84,13 @@ async def view_command(directory, key):
             return await authorize(directory)
         except (httpx.HTTPError, OSError, RuntimeError, ValueError):
             return {"error": "Last.fm connection failed. Try again."}
+    if key == "o":
+        from .setup import connect_osu_api
+        try:
+            await connect_osu_api()
+            return {"message": "osu! public API connected. Archives still need website sign-in."}
+        except (OSError, RuntimeError, ValueError):
+            return {"error": "osu! API connection failed. Try again with o."}
     if key == "d":
         from .cli import execute, parser
         return await execute(parser().parse_args(["--data-dir", str(directory), "discogs", "auth"]))
@@ -231,16 +238,16 @@ async def show_console(directory: Path, *, output=print):
                         key = sys.stdin.read(1).lower()
             if key == "q":
                 return
-            if key in "fivesatbu?xrdmh" and key:
+            if key in "fivesatbu?xrdmho" and key:
                 try:
                     clear_progress()
                     last_download_notice = None
-                    if key in {"t", "r", "d", "m", "h"} and previous is not None:
+                    if key in {"t", "r", "d", "m", "h", "o"} and previous is not None:
                         termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, previous)
                     try:
                         response = await view_command(directory, key)
                     finally:
-                        if key in {"t", "r", "d", "m", "h"} and previous is not None:
+                        if key in {"t", "r", "d", "m", "h", "o"} and previous is not None:
                             tty.setcbreak(sys.stdin.fileno())
                     if response is not None:
                         output(render(response, full=key == "v"))

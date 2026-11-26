@@ -17,8 +17,8 @@ def no_live_update_check(monkeypatch):
     monkeypatch.setattr("osu_scrobbler.setup.asyncio.sleep", unchanged)
 
 
-@pytest.mark.parametrize("choice", ["y", ""])
-async def test_first_click_authorizes_once_respects_startup_choice_and_then_clears_to_welcome(tmp_path, monkeypatch, capsys, choice):
+@pytest.mark.parametrize("startup_choice", ["y", ""])
+async def test_first_click_offers_both_services_and_keeps_console_visible(tmp_path, monkeypatch, capsys, startup_choice):
     import osu_scrobbler.setup as setup
     import osu_scrobbler.cli as cli
     events = []
@@ -27,13 +27,15 @@ async def test_first_click_authorizes_once_respects_startup_choice_and_then_clea
     credentials = Credentials("private-api-key", "private-api-secret", "private-session")
     monkeypatch.setattr(setup, "require_windows", lambda: None)
     monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: stored[0]))
+    monkeypatch.setattr(setup, "OsuApiStore", lambda: SimpleNamespace(load=lambda: None))
     monkeypatch.setattr(setup, "startup_installed", lambda _: registered[0])
     async def authorize(directory):
         events.append("authorize")
         stored[0] = credentials
+    answers = iter(["s", "c", startup_choice])
     def ask(prompt):
         events.append("ask")
-        return choice
+        return next(answers)
     def install(directory):
         events.append("register")
         registered[0] = True
@@ -54,13 +56,13 @@ async def test_first_click_authorizes_once_respects_startup_choice_and_then_clea
     monkeypatch.setattr(setup.subprocess, "run", clear)
     monkeypatch.setattr(setup, "show_console", show)
     await first_run(tmp_path)
-    assert events == ["authorize", "ask"] + (["register"] if choice else []) + ["launch", "ready", "clear"] + ([] if choice else ["welcome"])
+    assert events == ["ask", "ask", "authorize", "ask"] + (["register"] if startup_choice else []) + ["launch", "ready", "clear", "welcome"]
     events.clear()
     await first_run(tmp_path)
     assert "authorize" not in events and "ask" not in events
-    expected = ["launch", "ready", "clear"] + ([] if choice else ["welcome"])
+    expected = (["register"] if startup_choice else []) + ["launch", "ready", "clear", "welcome"]
     assert events[-len(expected):] == expected
-    assert registered[0] is bool(choice)
+    assert registered[0] is bool(startup_choice)
     output = capsys.readouterr().out
     for secret in (credentials.api_key, credentials.api_secret, credentials.session_key):
         assert secret not in output
@@ -72,6 +74,9 @@ async def test_failed_authorization_preserves_errors_and_does_not_launch_or_mark
     import osu_scrobbler.cli as cli
     monkeypatch.setattr(setup, "require_windows", lambda: None)
     monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: None))
+    monkeypatch.setattr(setup, "OsuApiStore", lambda: SimpleNamespace(load=lambda: None))
+    answers = iter(["s", "c"])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
     async def failed(directory):
         raise RuntimeError("Authorization unavailable")
     def forbidden(*args, **kwargs):
@@ -85,9 +90,37 @@ async def test_failed_authorization_preserves_errors_and_does_not_launch_or_mark
     assert not (tmp_path / "setup-state.json").exists()
 
 
+async def test_skipping_both_connections_finishes_first_run_and_returning_launch_needs_no_sign_in(tmp_path, monkeypatch):
+    import osu_scrobbler.setup as setup
+    import osu_scrobbler.cli as cli
+    events = []
+    monkeypatch.setattr(setup, "require_windows", lambda: None)
+    monkeypatch.setattr(setup, "OsuApiStore", lambda: SimpleNamespace(load=lambda: None))
+    monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: None))
+    monkeypatch.setattr(setup, "startup_installed", lambda _: False)
+    answers = iter(["", "", ""])
+    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    monkeypatch.setattr(cli, "authorize", lambda _: pytest.fail("Last.fm was skipped"))
+    async def ready(*_):
+        events.append("ready")
+    monkeypatch.setattr(setup, "launch_tray", lambda *_, **__: events.append("tray"))
+    monkeypatch.setattr(setup, "wait_for_tray", ready)
+    monkeypatch.setattr(setup, "show_console", ready)
+    monkeypatch.setattr(setup.subprocess, "run", lambda *_, **__: None)
+    await first_run(tmp_path)
+    assert events == ["tray", "ready", "ready"]
+    assert setup.setup_complete(tmp_path)
+    async def health(_):
+        return {"ready": True, "version": setup.__version__}
+    monkeypatch.setattr(setup, "tray_health", health)
+    await setup.launch(tmp_path)
+    assert events == ["tray", "ready", "ready"]
+
+
 async def test_failed_tray_start_does_not_clear_error_or_open_dead_console(tmp_path, monkeypatch):
     import osu_scrobbler.setup as setup
     monkeypatch.setattr(setup, "require_windows", lambda: None)
+    (tmp_path / "setup-state.json").write_text('{"complete":true}')
     credentials = Credentials("key", "secret", "session")
     monkeypatch.setattr(setup, "CredentialStore", lambda: SimpleNamespace(load=lambda: credentials))
     monkeypatch.setattr(setup, "startup_installed", lambda _: True)
@@ -148,6 +181,7 @@ def test_bootstrap_does_not_mark_a_failed_install_as_ready(tmp_path):
 async def test_installed_update_replaces_older_running_backend_before_showing_terminal(tmp_path, monkeypatch):
     import osu_scrobbler.setup as setup
     events = []
+    (tmp_path / 'setup-state.json').write_text('{"complete":true}')
     monkeypatch.setattr(setup, 'require_windows', lambda: None)
     monkeypatch.setattr(setup, 'CredentialStore', lambda: SimpleNamespace(load=lambda: Credentials('key', 'secret', 'session')))
     monkeypatch.setattr(setup, 'startup_installed', lambda _: True)
@@ -167,7 +201,7 @@ async def test_installed_update_replaces_older_running_backend_before_showing_te
     monkeypatch.setattr(setup, 'show_console', shown)
     monkeypatch.setattr(setup.subprocess, 'run', lambda *args, **kwargs: None)
     await first_run(tmp_path, check_updates=False)
-    assert events == ['stop old', 'launch new', 'new ready']
+    assert events == ['stop old', 'launch new', 'new ready', 'new view']
 
 
 async def test_returning_start_stays_in_tray_without_prompts_browser_or_terminal(tmp_path, monkeypatch):

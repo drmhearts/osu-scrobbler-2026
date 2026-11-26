@@ -7,7 +7,8 @@ from .terminal import color
 def commands(*, background=False):
     return '\n'.join([
         'i info  v details  s status  f force  t timer',
-        'e export  a auto-export  r Last.fm  d Discogs  b startup  u update',
+        'e export  a auto-export  r Last.fm  o osu! API  d Discogs',
+        'b startup  u update',
         'm maps  h help  ' + ('q hide' if background else 'q quit') + '  x stop',
     ])
 
@@ -15,6 +16,6 @@ def commands(*, background=False):
 def welcome(directory, *, background=False):
     return "\n".join([
         color(f"osu! life hacks {__version__}", "95"),
-        "", "Open osu! and listen. Last.fm setup is remembered.",
+        "", "Open osu! and listen. Connect Last.fm with r to scrobble.",
         commands(background=background), '', '©Hky Sigh, 2026',
     ])

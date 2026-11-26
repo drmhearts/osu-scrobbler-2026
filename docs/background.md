@@ -1,6 +1,9 @@
 # Background operation
 
-Open **START.cmd**. **b** toggles Windows sign-in startup; **q** hides the console;
+On first launch, **START.cmd** opens a visible setup screen. Connect or skip
+osu!'s public API and Last.fm separately, then choose Windows startup. The
+terminal stays visible after setup. Later launches start in the tray.
+**b** toggles Windows sign-in startup; **q** hides the console;
 click the pink tray icon to reopen it; **x** or tray → Exit stops the app.
 
 The tray starts one watcher when osu! opens and stops that watcher when all game

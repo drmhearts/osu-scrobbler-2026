@@ -10,14 +10,19 @@ GET STARTED
 1. Download the latest Windows ZIP from:
    https://github.com/drmhearts/osu-scrobbler-2026/releases/latest
 2. Extract the ZIP and double-click START.cmd.
-3. Connect Last.fm once. Authorization is saved in the Windows credential vault.
-4. Open osu! and listen. Use the terminal or pink tray icon for controls.
+3. The first launch opens a visible setup screen. Connect or skip the osu!
+   public API and Last.fm separately, then choose whether to start with Windows.
+   Last.fm authorization opens in your normal default browser. API secrets
+   are saved in the Windows credential vault.
+4. The terminal stays visible after setup, even when Windows startup is on.
+   Open osu! and listen. Use the terminal or pink tray icon for controls.
 
 The ZIP includes Python. Bulk downloads use your installed Windows default
 browser (Firefox, Chrome or Edge) with a separate, remembered osu! website sign-in.
 Firefox may fetch its matching geckodriver once; no browser is downloaded.
 Public map searches and library scans do not need sign-in, but osu! requires it
-for full archive downloads. No external game reader is
+for full archive downloads. A public osu! API connection cannot authorize
+archive downloads. No external game reader is
 needed. To run from source, install with:
    python -m pip install -e ".[test]"
    python -m osu_scrobbler setup
@@ -28,7 +33,7 @@ EVERYDAY CONTROLS
   f / t       Force scrobble, change listening timer
   e / a       Export accepted history, toggle automatic export
   m           Download maps: start, filter, pause, resume, cancel, import, scan
-  r / d       Connect Last.fm, configure optional Discogs lookup
+  r / o / d   Connect Last.fm, osu! public API, optional Discogs lookup
   b / u       Toggle Windows startup, check/install an update
   h           Help topics: scrobbling, downloading, export, collections
   q / x       Hide the console, stop the app
@@ -67,7 +72,8 @@ OTHER COMMANDS
 Last.fm delivery history. "tray --install" enables sign-in startup and
 "tray --uninstall" disables it. "update --check" checks for a release;
 "update --rollback" restores the prior runtime. "privacy" explains data and
-network requests. "config show" lists non-secret settings.
+network requests. "config show" lists non-secret settings. Run "setup" again
+to revisit both connections, or "osu-api preview" to check the public API.
 
 UNINSTALL
 
@@ -84,6 +90,9 @@ waits with a compatibility message. See docs/telemetry.md for diagnostics.
 
 Downloads use osu!'s normal website and full-media archives. Website changes,
 browser verification, expired sign-in or server rate limits can pause a job.
+If Cloudflare rejects the downloader's dedicated automated browser, manual
+downloads in your ordinary browser remain available. The tool cannot transfer
+that session or bypass verification with public API credentials.
 Local pacing cannot guarantee avoidance of limits. Lazer imports remain queued
 until confirmed there. Collection membership is a separate manual step.
 See docs/privacy.md and docs/updates.md.

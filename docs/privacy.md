@@ -13,6 +13,7 @@ Dependencies retain their own licenses.
 | Local databases | Submission music fields, timestamps/status and duplicate safeguards; settings, manual corrections and a lookup cache. History is retained for queue recovery and export. Full lookup details are excluded from submission records. |
 | Lookup cache | At most 256 entries; successful matches expire after seven days, ambiguous/missing matches after one. Expired entries are removed when the app opens or accesses the cache. Corrections remain until cleared. |
 | Last.fm credentials | API key/secret and session key in the OS vault. No password, osu! credentials or plaintext credential file. |
+| Optional osu! public API | Your OAuth application's Client ID and Secret in a separate OS vault entry. A short-lived public-scope access token stays in memory for validation/preview. No osu! password or website cookie is copied into the app. |
 | Updates | Public version/digest and current/previous program environments in the local data directory. No user identity, music history or credentials sent with release checks. |
 | Beatmap downloads (opt-in) | Filters, library metadata paths/IDs, queue, receipts and last successful set in a separate SQLite checkpoint. Shared account ID/request timestamps retain seven days of recent requests and ongoing cooldowns. Completed set IDs remain until explicitly removed with app data. No browser tokens in these databases. |
 | Downloader sign-in | Dedicated profile for your Windows default Firefox, Chrome or Edge browser, separate from your ordinary profile and the game. Firefox uses its normal profile cookie storage; Chrome/Edge use Windows-protected storage. Passwords/tokens are never entered into the terminal, exported to plaintext JSON or logged. |
@@ -29,6 +30,8 @@ Last.fm scrobbling separately receives authorized song metadata, playback time
 and authentication. These services can see your IP address and apply their own
 privacy policies. Selected songs are searched before gameplay; live `--dry-run`
 still uses metadata sources, while fixture demos make no external requests.
+The optional osu! API connection requests a public-scope token from osu! and
+can preview ranked map metadata. It cannot authorize archive downloads.
 
 Automatic startup updates contact GitHub for public release metadata/downloads.
 Bundled Windows updates include dependencies; legacy/source installs may also

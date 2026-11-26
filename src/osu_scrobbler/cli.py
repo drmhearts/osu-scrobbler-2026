@@ -28,6 +28,8 @@ def parser():
     auth.add_argument("--session", action="store_true", help="Securely enter an already authorized session key")
     discogs = commands.add_parser("discogs", help="Configure optional Discogs release search")
     discogs.add_argument("discogs_action", choices=["auth", "status", "remove"])
+    osu_api = commands.add_parser("osu-api", help="Connect or inspect the optional public osu! map API")
+    osu_api.add_argument("osu_api_action", nargs="?", choices=["connect", "status", "preview"], default="status")
     from .downloads.commands import add_parser
     add_parser(commands)
     watch = commands.add_parser("watch", help="Start the sole gameplay watcher and local command server")
@@ -70,7 +72,7 @@ def parser():
     tray.add_argument("--dry-run", action="store_true", help="Preview only; never send Last.fm scrobbles")
     commands.add_parser("console", help="Open a terminal view of the running background watcher")
     commands.add_parser("launch", help="First-time setup, then quiet tray launches")
-    setup = commands.add_parser("setup", help="Connect Last.fm, choose background startup, and open the welcome terminal")
+    setup = commands.add_parser("setup", help="Connect or skip osu! API and Last.fm, set startup, and open the terminal")
     setup.add_argument("--enable-startup", action="store_true", help="Enable Windows sign-in startup without asking again")
     setup.add_argument("--disable-startup", action="store_true", help="Disable Windows sign-in startup")
     setup.add_argument("--update", action="store_true", help="Update and restart the app")
@@ -123,6 +125,17 @@ async def execute(args):
     if command == "help":
         from .help import help_text
         return {"message": help_text(args.topic)}
+    if command == "osu-api":
+        from .osu_api import OsuApiStore, preview_ranked
+        if args.osu_api_action == "connect":
+            from .setup import connect_osu_api
+            await connect_osu_api()
+            return {"message": "osu! public API connected. This does not authorize beatmap downloads."}
+        if args.osu_api_action == "preview":
+            sets = await preview_ranked()
+            rows = [f"{item['id']}: {item['artist']} — {item['title']}" for item in sets]
+            return {"message": "Recent ranked beatmapsets (public API):\n" + ("\n".join(rows) or "No sets returned.")}
+        return {"message": "osu! public API: " + ("connected" if OsuApiStore().load() else "not connected") + ". Archives still need website sign-in."}
     if command == "maps":
         from .downloads.commands import execute as downloads_execute
         return await downloads_execute(args)
@@ -159,7 +172,7 @@ async def execute(args):
         if await startup(directory, command="setup", skip=args.skip_update_check,
                          enable_startup=args.enable_startup, output=print):
             return None
-        await first_run(directory, enable_startup=args.enable_startup, check_updates=False)
+        await first_run(directory, enable_startup=args.enable_startup, check_updates=False, repeat=not args.update)
         return None
     if command == "update":
         import httpx
