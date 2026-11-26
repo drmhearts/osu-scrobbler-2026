@@ -166,7 +166,15 @@ class Engine:
                     store.update(job_id, message=f"Downloading beatmapset {set_id} (full media)")
                     await self.operation(job_id, self.source.download(set_id, partial,
                         lambda count: store.update(job_id, progress=count)))
-                    archive_ids(partial, expected=set_id, full=True, check=check)
+                    try:
+                        archive_ids(partial, expected=set_id, full=True, check=check)
+                    except (DownloadError, OSError):
+                        if hasattr(self.source, "forget"):
+                            try:
+                                await self.source.forget(set_id)
+                            except (DownloadError, OSError):
+                                pass
+                        raise
                 if not self.running(job_id):
                     raise Interrupted()
                 store.transition(job_id, set_id, "validated", archive=partial)
@@ -219,7 +227,7 @@ class Engine:
 
 
 async def worker(directory, job_id, *, source_factory=None, shared=None):
-    from .browser import BrowserSource
+    from .firefox_extension import selected_source
     root = Path(directory) / "beatmap-downloads"
     shared = Path(shared) if shared else shared_root()
     shared.mkdir(parents=True, exist_ok=True)
@@ -242,14 +250,14 @@ async def worker(directory, job_id, *, source_factory=None, shared=None):
             await asyncio.sleep(0.25)
         if store.job(job_id)["control"] != "run":
             return True
-        async with (source_factory or BrowserSource)(root) as source:
+        async with (source_factory(root) if source_factory else selected_source(root)) as source:
             await Engine(store, limiter, source).run(job_id)
     except AuthRequired as error:
         store.update(job_id, state="auth_required", message=str(error))
     except DownloadError as error:
         store.update(job_id, state="error", message=str(error) + " Progress retained; use maps resume after correcting it.")
     except Exception:
-        store.update(job_id, state="error", message="Cannot start the download browser/worker. Check your default Firefox, Chrome or Edge installation, then resume. Progress retained.")
+        store.update(job_id, state="error", message="Cannot start the downloader. Check Firefox extension pairing or your browser installation, then resume. Progress retained.")
     finally:
         limiter.close()
         store.close()

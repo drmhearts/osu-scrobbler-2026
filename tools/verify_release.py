@@ -27,6 +27,9 @@ def verify(directory, tag):
         for name in ("README.txt", "UNINSTALL.cmd", "START.cmd"):
             if not archive.getinfo("osu-life-hacks/" + name).file_size:
                 raise RuntimeError("Windows download is missing " + name)
+        extension = json.loads(archive.read("osu-life-hacks/firefox-extension/manifest.json"))
+        if extension["version"] != number or "downloads" not in extension["permissions"]:
+            raise RuntimeError("Windows download has no matching Firefox extension")
     print(f"Verified all assets for {tag}")
 
 

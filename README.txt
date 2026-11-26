@@ -17,9 +17,9 @@ GET STARTED
 4. The terminal stays visible after setup, even when Windows startup is on.
    Open osu! and listen. Use the terminal or pink tray icon for controls.
 
-The ZIP includes Python. Bulk downloads use your installed Windows default
-browser (Firefox, Chrome or Edge) with a separate, remembered osu! website sign-in.
-Firefox may fetch its matching geckodriver once; no browser is downloaded.
+The ZIP includes Python. Firefox bulk downloads use a small add-on in your
+regular Firefox profile; Chrome and Edge use a separate remembered profile.
+Firefox does not need geckodriver or a downloaded browser for this feature.
 Public map searches and library scans do not need sign-in, but osu! requires it
 for full archive downloads. A public osu! API connection cannot authorize
 archive downloads. No external game reader is
@@ -53,12 +53,21 @@ unknown. See docs/musicbrainz.md for more.
 
 DOWNLOADS
 
-Open maps with "m". Pick a destination or type "custom", sign in once to osu!,
+Open maps with "m". In Firefox, first choose "p Pair Firefox". In Firefox,
+open about:debugging, choose This Firefox > Load Temporary Add-on, and select
+firefox-extension\manifest.json beside START.cmd. Paste the code from the app
+into the add-on's toolbar popup, then sign in to osu! normally in Firefox.
+Temporary add-ons must be loaded again after each Firefox restart; permanent
+installation requires Mozilla signing. Chrome/Edge need no add-on.
+
+Pick a destination or type "custom", sign in once to osu!,
 set optional filters, then start. The default is 25 recently ranked standard
 beatmapsets, newest first. The count measures full beatmapsets, which may include
 other modes and difficulties. Jobs save queues, completed IDs and cooldowns.
 Pause, cancel and restart can be resumed. The terminal shows a live progress
-bar and transfer activity. A library scan error appears before browser sign-in.
+bar and transfer activity. Firefox keeps its original archive under its normal
+Downloads\osu-life-hacks folder; the app validates a copy before import.
+A library scan error appears before browser sign-in.
 See docs/downloads.md for setup, filters and recovery.
 
 At batch start, you can choose an existing or new collection name. The app
@@ -90,9 +99,10 @@ waits with a compatibility message. See docs/telemetry.md for diagnostics.
 
 Downloads use osu!'s normal website and full-media archives. Website changes,
 browser verification, expired sign-in or server rate limits can pause a job.
-If Cloudflare rejects the downloader's dedicated automated browser, manual
-downloads in your ordinary browser remain available. The tool cannot transfer
-that session or bypass verification with public API credentials.
+Firefox downloads use your regular session and browser cookies without copying
+them into the app. Website verification or rate limits can still pause a batch;
+the add-on cannot bypass them. Public osu! API credentials cannot authorize
+archives.
 Local pacing cannot guarantee avoidance of limits. Lazer imports remain queued
 until confirmed there. Collection membership is a separate manual step.
 See docs/privacy.md and docs/updates.md.

@@ -15,4 +15,6 @@ are required. Startup and credentials retain their existing internal identifiers
 so rebranding does not duplicate startup entries or require reauthorization.
 The profile/runtime remains `%LOCALAPPDATA%\osu-scrobbler` for migration safety.
 The visible title and package/command name are osu! life hacks / `osu-life-hacks`.
-The extracted download can be removed after setup; the installed START remains.
+Keep the extracted download folder if you use the temporary Firefox add-on;
+Firefox needs its manifest there again after each browser restart. The installed
+START remains available for normal app launches.

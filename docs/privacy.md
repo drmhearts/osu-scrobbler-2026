@@ -16,7 +16,8 @@ Dependencies retain their own licenses.
 | Optional osu! public API | Your OAuth application's Client ID and Secret in a separate OS vault entry. A short-lived public-scope access token stays in memory for validation/preview. No osu! password or website cookie is copied into the app. |
 | Updates | Public version/digest and current/previous program environments in the local data directory. No user identity, music history or credentials sent with release checks. |
 | Beatmap downloads (opt-in) | Filters, library metadata paths/IDs, queue, receipts and last successful set in a separate SQLite checkpoint. Shared account ID/request timestamps retain seven days of recent requests and ongoing cooldowns. Completed set IDs remain until explicitly removed with app data. No browser tokens in these databases. |
-| Downloader sign-in | Dedicated profile for your Windows default Firefox, Chrome or Edge browser, separate from your ordinary profile and the game. Firefox uses its normal profile cookie storage; Chrome/Edge use Windows-protected storage. Passwords/tokens are never entered into the terminal, exported to plaintext JSON or logged. |
+| Downloader sign-in | Firefox add-on uses your regular session through the browser's download API; cookies are never exported to Python. Chrome/Edge use a separate Windows-protected browser profile. Passwords and tokens are not logged. |
+| Firefox pairing | Random code in the OS vault and the add-on's Firefox storage. A loopback server accepts authenticated requests only while a maps job runs; it receives public map metadata, osu! account ID and paths of add-on downloads, never website cookies. |
 
 **Online requests:** MusicBrainz, Discogs and Last.fm metadata receive song title/artist searches,
 optional release hints and music identifiers over HTTPS. Optional Discogs tokens
@@ -53,9 +54,9 @@ The optional maps feature sends filters/beatmapset IDs to osu!web and follows th
 server's normal full-media download redirect. osu! sees the signed-in account/IP
 and applies its own limits. Hiding the terminal keeps the worker running; maps
 pause/cancel, tray Exit and app stop pause it safely. Checkpoints, the browser
-profile and request/cooldown history are independent of Last.fm authorization and
-are deliberately retained by privacy --clear-cache. Sign out/revoke the dedicated
-osu! session through the browser/website when needed. See [downloads](downloads.md).
+profile/add-on pairing and request/cooldown history are independent of Last.fm authorization and
+are deliberately retained by privacy --clear-cache. Sign out in your regular
+Firefox or dedicated Chrome/Edge profile when needed. See [downloads](downloads.md).
 
 Run `privacy` to see the local data directory. After stopping the tray/watcher,
 run `privacy --clear-cache` to remove lookup cache and old activity logs while

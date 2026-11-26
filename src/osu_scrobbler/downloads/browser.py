@@ -1,8 +1,7 @@
-"""Normal visible osu!web session in an OS-protected dedicated browser profile.
+"""Chromium website source, with Firefox delegated to the regular-profile add-on.
 
-No game tokens, normal browser cookies, passwords or browser verification are
-read/bypassed. Only this profile is automated. Uses the Windows default browser
-when it is Firefox, Chrome or Edge.
+No game tokens, passwords or browser verification are read/bypassed. Chrome and
+Edge use a dedicated profile. Firefox uses its extension in the usual profile.
 """
 
 import asyncio
@@ -38,7 +37,7 @@ class BrowserSource:
         self.account = None
         self.error = None
         self.failed = asyncio.Event()
-        self.firefox = None
+        self.extension = None
 
     async def __aenter__(self):
         if os.name != "nt":
@@ -49,10 +48,10 @@ class BrowserSource:
         executable = default_browser_path()
         name = executable.name.casefold() if executable else ""
         if name == "firefox.exe":
-            from .firefox_source import FirefoxSource
-            self.firefox = FirefoxSource(self.directory, executable)
-            await self.firefox.__aenter__()
-            return self.firefox
+            from .firefox_extension import ExtensionSource
+            self.extension = ExtensionSource(self.directory)
+            await self.extension.__aenter__()
+            return self.extension
         if name not in {"msedge.exe", "chrome.exe"}:
             raise DownloadError("Set Firefox, Chrome or Edge as your Windows default browser, then retry. No other browser was opened.")
         from playwright.async_api import async_playwright
@@ -217,8 +216,8 @@ class BrowserSource:
             await asyncio.gather(task, failure, return_exceptions=True)
 
     async def __aexit__(self, *args):
-        if self.firefox:
-            await self.firefox.__aexit__(*args)
+        if self.extension:
+            await self.extension.__aexit__(*args)
             return
         if self.context:
             try:

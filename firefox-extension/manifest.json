@@ -1,0 +1,17 @@
+{
+  "manifest_version": 2,
+  "name": "osu! life hacks downloads",
+  "version": "0.9.6",
+  "description": "Download beatmapsets in your regular Firefox session for osu! life hacks.",
+  "browser_specific_settings": {
+    "gecko": { "id": "downloads@osu-life-hacks.local", "strict_min_version": "115.0" }
+  },
+  "permissions": [
+    "downloads",
+    "storage",
+    "https://osu.ppy.sh/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": { "scripts": ["background.js"], "persistent": true },
+  "browser_action": { "default_title": "osu! life hacks downloads", "default_popup": "popup.html" }
+}

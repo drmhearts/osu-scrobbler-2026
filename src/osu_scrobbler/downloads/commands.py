@@ -14,7 +14,7 @@ from .models import AuthRequired, Destination, DownloadError, Filters, GENRES, M
 from .service import import_archive, launch_worker, shared_root, worker, worker_active
 from .store import Store
 
-ACTIONS = ("menu", "start", "resume", "pause", "cancel", "status", "scan", "login",
+ACTIONS = ("menu", "start", "resume", "pause", "cancel", "status", "scan", "login", "pair",
            "configure", "import", "confirm", "collection", "collection-confirm", "worker")
 
 
@@ -38,6 +38,7 @@ def add_parser(commands):
     parser.add_argument("--set-id", type=int, help="Explicitly confirm a downloaded lazer set was imported")
     parser.add_argument("--collection", help="Optional existing/new in-game collection name; assignment is a manual step")
     parser.add_argument("--new-collection", action="store_true", help="Mark --collection as a new collection to create in the game")
+    parser.add_argument("--rotate", action="store_true", help="Replace the Firefox extension pairing code")
     return parser
 
 
@@ -158,7 +159,7 @@ def check_libraries(store, destination):
 
 async def ensure_signed_in(directory, prompt, output):
     """Keep the visible terminal and browser together during first sign-in."""
-    from .browser import BrowserSource
+    from .firefox_extension import selected_source
     with WatchLock(shared_root(), "worker.lock"):
         limiter = Limiter(shared_root())
         try:
@@ -167,11 +168,11 @@ async def ensure_signed_in(directory, prompt, output):
                 when = datetime.fromtimestamp(until, timezone.utc).isoformat()
                 raise DownloadError("Shared osu! cooldown/pacing is active until " + when + ". No browser request sent.")
             limiter.reserve("login", kind="connect")
-            async with BrowserSource(Path(directory) / "beatmap-downloads") as source:
+            async with selected_source(Path(directory) / "beatmap-downloads") as source:
                 try:
                     await source.connect()
                 except AuthRequired:
-                    output("Sign in to osu! in your default browser window. This terminal will wait for you.")
+                    output("Sign in to osu! in your regular browser. This terminal will wait for you.")
                     await source.login(prompt)
         finally:
             limiter.close()
@@ -206,8 +207,14 @@ async def execute(args):
             job = store.job(args.job)
             store.confirm_collection(job["id"], args.set_id)
             return {"message": f"Recorded your in-game collection check for set {args.set_id}. The app cannot verify collection membership directly."}
+        if action == "pair":
+            from .firefox_extension import PairingStore
+            code = PairingStore().token(create=True, rotate=args.rotate)
+            return {"message": "Firefox extension pairing code: " + code +
+                    "\nLoad firefox-extension/manifest.json in Firefox's about:debugging → This Firefox → Load Temporary Add-on, "
+                    "then paste this code into its toolbar popup. Keep the code private. Normal Firefox needs a Mozilla-signed add-on for permanent installation."}
         if action == "login":
-            from .browser import BrowserSource
+            from .firefox_extension import selected_source, ExtensionSource
             with WatchLock(shared_root(), "worker.lock"):
                 limiter = Limiter(shared_root())
                 try:
@@ -216,7 +223,7 @@ async def execute(args):
                         when = datetime.fromtimestamp(until, timezone.utc).isoformat()
                         raise DownloadError("Shared osu! cooldown/pacing is active until " + when + ". Sign in later; no request sent.")
                     limiter.reserve("login", kind="connect")
-                    async with BrowserSource(store.root) as source:
+                    async with selected_source(store.root) as source:
                         async def prompt(text):
                             return await asyncio.to_thread(input, text)
                         await source.login(prompt)
@@ -229,7 +236,8 @@ async def execute(args):
                     raise DownloadError("Browser sign-in unavailable. Check your default Firefox, Chrome or Edge installation and complete verification yourself.") from None
                 finally:
                     limiter.close()
-            return {"message": "osu! sign-in remembered in this tool's dedicated default-browser profile."}
+            return {"message": "osu! sign-in checked in your regular Firefox profile." if isinstance(source, ExtensionSource)
+                    else "osu! sign-in remembered in this tool's dedicated default-browser profile."}
         if action == "scan":
             destination = configure(store, args.client, args.root, args.exe)
             libraries = [Destination(**value) for value in store.preference("libraries", [])] + discover()
@@ -498,7 +506,7 @@ async def menu(directory, *, output=print, prompt=ask, embedded=False):
             output("")
             output(color("Download", "95") + "   1 Start recent   2 Filters     3 Pause")
             output("           4 Resume         5 Cancel")
-            output(color("Setup", "95") + "      6 Sign in        7 Destination")
+            output(color("Setup", "95") + "      6 Sign in        7 Destination   p Pair Firefox")
             output(color("Library", "95") + "    8 Import saved   9 Scan        c Collection")
             output(color("Other", "95") + "      h Help          0 Back")
             output(color("Count = full beatmapsets; other modes may be included.", "90"))
@@ -532,7 +540,7 @@ async def menu(directory, *, output=print, prompt=ask, embedded=False):
             continue
         finally:
             store.close()
-        action = {"1": "start", "3": "pause", "4": "resume", "5": "cancel", "6": "login", "8": "import", "9": "scan"}.get(choice)
+        action = {"1": "start", "3": "pause", "4": "resume", "5": "cancel", "6": "login", "8": "import", "9": "scan", "p": "pair"}.get(choice)
         if action:
             try:
                 if action == "start":

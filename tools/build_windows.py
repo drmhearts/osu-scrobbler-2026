@@ -49,6 +49,7 @@ def build(output):
         for filename in ("START.cmd", "UNINSTALL.cmd", "README.txt", "LICENSE"):
             shutil.copyfile(root / filename, package / filename)
         shutil.copytree(root / 'docs', package / 'docs')
+        shutil.copytree(root / 'firefox-extension', package / 'firefox-extension')
         # Run the actual copied interpreter with no PATH Python and no user-site.
         clean_env = os.environ.copy()
         clean_env["PATH"] = os.environ["SystemRoot"] + r"\System32"
@@ -56,7 +57,7 @@ def build(output):
         clean_env.pop("PYTHONHOME", None)
         subprocess.run([str(runtime / "python.exe"), "-c",
             "from osu_scrobbler import cli, watcher, tray, console; import httpx, keyring, psutil, pystray, PIL, sqlite3; "
-            "from osu_scrobbler.downloads.browser import BrowserSource; from playwright.async_api import async_playwright; import selenium; "
+            "from osu_scrobbler.downloads.browser import BrowserSource; from playwright.async_api import async_playwright; "
             "from keyring.backends.Windows import WinVaultKeyring; import ctypes; "
             "c=sqlite3.connect(':memory:'); assert c.execute('select 1').fetchone()==(1,); "
             f"from osu_scrobbler import __version__; assert __version__=={number!r}"], cwd=runtime, env=clean_env, check=True)
@@ -88,8 +89,10 @@ def build(output):
             "from osu_scrobbler.updater import Release; c=Path(sys.argv[1]).read_bytes(); "
             f"verify_archive(c,Release({number!r},'osu-life-hacks-windows.zip','',hashlib.sha256(c).hexdigest(),len(c)))", str(asset)], env=clean_env, check=True)
         checksums = output / "SHA256SUMS.txt"
-        with checksums.open("a", encoding="utf-8") as handle:
-            handle.write(f"{hashlib.sha256(asset.read_bytes()).hexdigest()}  {asset.name}\n")
+        previous = [line for line in checksums.read_text("utf-8").splitlines()
+                    if not line.endswith("  " + asset.name)]
+        previous.append(f"{hashlib.sha256(asset.read_bytes()).hexdigest()}  {asset.name}")
+        checksums.write_text("\n".join(previous) + "\n", "utf-8")
         print(f"Windows x64 runtime built and verified: {asset.name} ({asset.stat().st_size} bytes)")
 
 

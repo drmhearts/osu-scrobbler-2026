@@ -131,8 +131,8 @@ async def test_start_keeps_terminal_open_for_sign_in_then_live_progress(tmp_path
             events.append("sign-in-prompt")
             await prompt("Sign in, then press Enter: ")
 
-    from osu_scrobbler.downloads import browser
-    monkeypatch.setattr(browser, "BrowserSource", Browser)
+    from osu_scrobbler.downloads import firefox_extension
+    monkeypatch.setattr(firefox_extension, "selected_source", Browser)
     async def fake_execute(args):
         events.append("worker-start")
         return {"message": "Batch started"}

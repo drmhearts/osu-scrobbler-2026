@@ -13,34 +13,25 @@ from test_downloads import osz
 
 async def test_windows_default_firefox_is_selected_without_opening_edge(tmp_path, monkeypatch):
     from osu_scrobbler.downloads import browser
-    from osu_scrobbler.downloads import firefox_source
+    from osu_scrobbler.downloads import firefox_extension
     monkeypatch.setattr(browser, "os", SimpleNamespace(name="nt"))
     monkeypatch.setattr(browser, "default_browser_path", lambda: tmp_path / "firefox.exe")
     monkeypatch.setattr("osu_scrobbler.lastfm.CredentialStore._secure_backend", lambda self: object())
     events = []
 
     class FakeFirefox:
-        def __init__(self, directory, executable):
-            events.append(("create", executable.name))
+        def __init__(self, directory):
+            events.append(("create", Path(directory).name))
         async def __aenter__(self):
             events.append(("open", "firefox"))
             return self
         async def __aexit__(self, *args):
             events.append(("close", "firefox"))
 
-    monkeypatch.setattr(firefox_source, "FirefoxSource", FakeFirefox)
+    monkeypatch.setattr(firefox_extension, "ExtensionSource", FakeFirefox)
     async with BrowserSource(tmp_path) as source:
         assert isinstance(source, FakeFirefox)
-    assert events == [("create", "firefox.exe"), ("open", "firefox"), ("close", "firefox")]
-
-
-def test_firefox_network_limit_preserves_retry_after(tmp_path):
-    from osu_scrobbler.downloads.firefox_source import FirefoxSource
-    source = FirefoxSource(tmp_path, tmp_path / "firefox.exe")
-    source.loop = SimpleNamespace(call_soon_threadsafe=lambda callback: callback())
-    source._response({"request": {"url": "https://osu.ppy.sh/beatmapsets/101/download"},
-                      "response": {"status": 429, "headers": [{"name": "Retry-After", "value": {"type": "string", "value": "120"}}]}})
-    assert source.failed.is_set() and isinstance(source.error, RateLimited) and source.error.seconds == 120
+    assert events == [("create", tmp_path.name), ("open", "firefox"), ("close", "firefox")]
 
 
 @pytest.mark.parametrize("status,error", [(401, AuthRequired), (403, AuthRequired), (429, RateLimited), (503, TransientError)])

@@ -7,10 +7,21 @@ from the tray. The app chooses a detected lazer destination by default; choose
 **7 destination** to change it. The prompt accepts a shown number, `custom`, or
 `current`. Custom setup first asks you to type `lazer` or `stable`, then separately
 asks for a folder path. Type `help` during any maps prompt to keep your place,
-or `back` to leave that form without changing saved settings. Choose **1 start
-recent**. The tool first checks existing maps. It then reuses a signed-in osu!
-session or keeps the terminal open while you sign in and complete verification in
-your default Firefox, Chrome or Edge window. You can also choose **6 sign in** separately.
+or `back` to leave that form without changing saved settings.
+
+**Firefox:** Choose **p Pair Firefox**. In your regular Firefox, open
+`about:debugging`, select **This Firefox → Load Temporary Add-on**, and select
+`firefox-extension/manifest.json` in the folder beside START.cmd. Paste the
+pairing code from the app into the add-on's toolbar popup. Sign in to osu! in
+that same Firefox profile. Choose **6 Sign in** to check it, then **1 Start
+recent**. The pairing code remains in the OS vault and Firefox profile; you
+normally paste it only once. Keep the extracted app folder while using the
+temporary add-on. Firefox removes temporary add-ons on restart, so reload it
+then. A permanent Firefox install requires [Mozilla signing](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/).
+
+**Chrome/Edge:** Choose **1 Start recent** or **6 Sign in**. These clients
+continue to use the tool's separate remembered browser profile. The tool checks
+existing maps before a new batch and keeps the terminal open for sign-in.
 After starting from the tray, the same terminal switches to a live progress view;
 press **m** for maps controls or **q** to hide it.
 
@@ -23,11 +34,10 @@ maps screen also reports job state, pending count, current set and last saved ID
 Use **m** again for pause, resume or cancel. The browser also shows transfer progress.
 Tray Exit, app stop and updates pause active transfers; choose resume after restart.
 
-Existing Windows packages include the Python browser driver; no separate Python,
-Node install, API key or downloaded browser is required. An installed, current
-Firefox, Chrome or Edge must be set as the Windows default browser. Firefox uses
-the installed Firefox binary and Selenium's matching geckodriver, which may be
-downloaded once and cached. It never downloads a browser. Source installs use:
+Existing Windows packages include Python and the Firefox add-on source; no
+separate Python, Node install, API key or downloaded browser is required. An
+installed Firefox, Chrome or Edge must be the Windows default browser. Firefox
+does not use Selenium or geckodriver at runtime. Source installs use:
 
     python -m pip install -e ".[test]"
     python -m osu_scrobbler maps
@@ -42,9 +52,10 @@ First-run setup can save your own osu! OAuth application's Client ID and Secret
 in the OS vault and validate the public API connection. This is optional for
 map searches and does not authorize website sign-in or archive downloads.
 `osu-api preview` checks the saved connection; `osu-api connect` updates it.
-If Cloudflare rejects the dedicated automated download browser, the app
-cannot pass verification for you or borrow cookies from your usual browser.
-Use that browser for manual downloads until the website permits this session.
+The Firefox add-on uses the cookies of your ordinary Firefox session through
+its downloads API without copying them into Python. Sign in or complete website
+verification yourself in Firefox. The add-on cannot bypass a server limit or
+verification challenge, and a download can still be refused by osu!.
 
 The browser transport currently supports Windows only, matching the app's native
 game/tray support. Pure filter/library/checkpoint tests remain portable.
@@ -105,22 +116,29 @@ API was found for either client; an in-game step is required.
 
 ## Sign-in and privacy
 
-Last.fm and Discogs credentials cannot authorize osu! downloads. The app does not
-extract osu! game tokens or read your ordinary browser profile. It creates its own
-visible profile for the Windows default browser in the app data directory.
-Firefox uses its normal profile cookie storage; Chrome and Edge use their normal
-Windows-protected profile storage. Insecure/mock password-store flags are removed.
-No cookie/session JSON export, password prompts, plaintext token files or token
-logging are used. The existing secure OS credential backend must be available.
+Last.fm and Discogs credentials cannot authorize osu! downloads. The app does
+not extract game tokens or read Firefox's cookie database. The Firefox add-on
+uses its `downloads` permission and osu! host permission to download in your
+regular browser session; [Firefox's download API](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/downloads/download)
+includes the relevant normal-session cookies. The add-on does not request the
+`cookies` permission. It sends
+public map metadata, account ID and the path of an archive it just downloaded
+to a bearer-protected server bound to `127.0.0.1:27895` while a maps job runs.
+The pairing code is in the OS vault and Firefox extension storage. `maps pair
+--rotate` invalidates the old code. The code authenticates local bridge requests;
+no osu! password, website cookie or osu! token is sent to the app bridge or
+logged. Browser verification is always yours to complete.
 
-The dedicated browser session is reused until osu! expires/revokes it. Choose
-sign in again only when asked; progress is independent of session lifetime.
-Do not share the browser profile or copy it between machines. Browser verification
-is completed by you; the app stops rather than bypassing it. The site may decline
-automated browser access even after successful sign-in.
+Chrome and Edge still use a visible, dedicated, OS-protected browser profile in
+the app data directory. Do not share or copy that profile between machines.
+These browsers may decline automated access even after sign-in.
 
-Search uses osu!web's same-origin JSON interface. Downloads click the normal
-full-media link, with the server's normal redirect. The app never uses noVideo,
+Search uses osu!web's JSON interface. Firefox uses its normal download manager
+and saves originals under `Downloads/osu-life-hacks` in your configured Firefox
+downloads location. The app copies each completed archive into staging, validates
+it, then places/imports it without touching the Firefox copy. Interrupted
+browser downloads can be resumed from Firefox's download history when available.
+Chrome/Edge click the normal full-media link. The app never uses noVideo,
 third-party mirrors, borrowed lazer OAuth scopes, alternative accounts or changed
 network identities to get around restrictions. Official API v2 archive downloads
 require the special lazer scope, so a generic API client is not presented as a

@@ -9,8 +9,10 @@ The Windows package includes Python. It reads game state directly, without
 an external game reader. Live reading requires Windows x64. Stable uses
 signature checks; the lazer reader currently targets 2026.1005.0 x64.
 See docs/telemetry.md for reader compatibility.
-Map downloads use your Windows default Firefox, Chrome or Edge browser in a
-separate profile. Full archives require an osu! sign-in.
+Firefox map downloads use the add-on in your regular Firefox profile. In the
+maps menu, choose p to pair it; load firefox-extension/manifest.json through
+Firefox's about:debugging first. Chrome and Edge use a separate browser profile.
+Full archives still require an osu! website sign-in.
 
   i / v / s   Track info, details, watcher status
   f / t       Force scrobble, listening timer
